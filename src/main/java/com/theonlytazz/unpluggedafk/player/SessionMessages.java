@@ -2,6 +2,8 @@ package com.theonlytazz.unpluggedafk.player;
 
 import com.theonlytazz.unpluggedafk.config.UnpluggedConfig;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -9,65 +11,62 @@ import java.time.Instant;
 final class SessionMessages {
     private SessionMessages() {}
 
-    static String reason(String requested, UnpluggedConfig.Messages messages) {
-        return requested == null || requested.isBlank() ? messages.defaultUnpluggedReason : requested;
+    static String reason(String requested) {
+        return requested == null ? "" : requested.trim();
     }
 
-    static String started(OfflineSession session, UnpluggedConfig.Messages messages) {
-        StringBuilder result = new StringBuilder(playerName(session, messages)).append(messages.unpluggedStarted);
-        if (messages.displayDuration) result.append(messages.whenUnpluggedDurationPrefix)
-                .append(session.timeoutMinutes()).append(messages.whenUnpluggedDurationSuffix);
-        appendReason(result, session.reason(), messages.unpluggedPunctuation);
-        return result.toString();
-    }
-
-    static String ended(OfflineSession session, UnpluggedStatus status, String detail,
-                        Instant now, UnpluggedConfig.Messages messages) {
-        long elapsed = Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli());
-        boolean successful = status == UnpluggedStatus.EXPIRED || status == UnpluggedStatus.REPLACED;
-        StringBuilder result = new StringBuilder();
-        if (successful) {
-            result.append(messages.displayDuration ? messages.unpluggedSuccessfulPrefix : messages.unpluggedSuccessful);
-            if (messages.displayDuration) result.append(formatDuration(elapsed)).append(messages.unpluggedSuccessfulSuffix);
-            appendReason(result, detail, messages.unpluggedSuccessfulPunctuation);
-        } else {
-            result.append(messages.unpluggedUnsuccessful);
-            if (messages.displayDuration) result.append(messages.unpluggedUnsuccessfulPrefix).append(formatDuration(elapsed));
-            appendReason(result, detail, messages.unpluggedUnsuccessfulPunctuation);
+    static Component started(OfflineSession session, UnpluggedConfig.Messages options) {
+        MutableComponent result = Component.translatable("message.unplugged_afk.started", session.name());
+        if (options.displayDuration) {
+            result.append(Component.translatable("message.unplugged_afk.started.duration", session.timeoutMinutes()));
         }
-        return result.toString();
+        appendDetail(result, session.reason());
+        return result;
     }
 
-    static String endedBroadcast(OfflineSession session, UnpluggedStatus status, Instant now,
-                                 UnpluggedConfig.Messages messages) {
-        String suffix = switch (status) {
-            case EXPIRED -> messages.whenUnpluggedExpired;
-            case REPLACED -> messages.whenUnpluggedReturned;
-            case TERMINATED -> messages.whenUnpluggedTerminated;
-            default -> messages.whenUnpluggedInterrupted;
+    static Component feedback(OfflineSession session, Instant now, UnpluggedConfig.Messages options) {
+        boolean successful = session.status() == UnpluggedStatus.EXPIRED || session.status() == UnpluggedStatus.REPLACED;
+        MutableComponent result = Component.translatable(successful
+                ? "message.unplugged_afk.feedback.success"
+                : "message.unplugged_afk.feedback.interrupted");
+        if (options.displayDuration) {
+            long elapsed = Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli());
+            result.append(Component.translatable("message.unplugged_afk.feedback.duration", formatDuration(elapsed)));
+        }
+        appendDetail(result, session.reason());
+        return result;
+    }
+
+    static Component endedBroadcast(OfflineSession session, Instant now, UnpluggedConfig.Messages options) {
+        String key = switch (session.status()) {
+            case EXPIRED -> "message.unplugged_afk.expired";
+            case REPLACED -> "message.unplugged_afk.returned";
+            case TERMINATED -> "message.unplugged_afk.terminated";
+            default -> "message.unplugged_afk.interrupted";
         };
-        StringBuilder result = new StringBuilder(playerName(session, messages)).append(suffix);
-        if (messages.displayDuration) result.append(messages.whenReturnDurationPrefix)
-                .append(formatDuration(Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli())))
-                .append(messages.whenReturnDurationSuffix);
-        return result.toString();
+        MutableComponent result = Component.translatable(key, session.name());
+        if (options.displayDuration) {
+            long elapsed = Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli());
+            result.append(Component.translatable("message.unplugged_afk.returned.duration", formatDuration(elapsed)));
+        }
+        return result;
     }
 
-    private static String playerName(OfflineSession session, UnpluggedConfig.Messages messages) {
-        return messages.unpluggedPlayerPrefix + session.name() + messages.unpluggedPlayerSuffix;
+    private static void appendDetail(MutableComponent target, String detail) {
+        if (detail == null || detail.isBlank()) return;
+        Component value = detail.startsWith("message.unplugged_afk.")
+                ? Component.translatable(detail)
+                : Component.literal(detail);
+        target.append(Component.translatable("message.unplugged_afk.detail", value));
     }
 
-    private static void appendReason(StringBuilder target, String reason, String punctuation) {
-        if (reason != null && !reason.isBlank()) target.append(punctuation).append(reason);
-    }
-
-    private static String formatDuration(long millis) {
+    private static Component formatDuration(long millis) {
         Duration duration = Duration.ofMillis(millis);
         long hours = duration.toHours();
         long minutes = duration.minusHours(hours).toMinutes();
         long seconds = duration.minusHours(hours).minusMinutes(minutes).toSeconds();
-        if (hours > 0) return hours + "h " + minutes + "m";
-        if (minutes > 0) return minutes + "m " + seconds + "s";
-        return seconds + "s";
+        if (hours > 0) return Component.translatable("duration.unplugged_afk.hours_minutes", hours, minutes);
+        if (minutes > 0) return Component.translatable("duration.unplugged_afk.minutes_seconds", minutes, seconds);
+        return Component.translatable("duration.unplugged_afk.seconds", seconds);
     }
 }

@@ -8,7 +8,9 @@ import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,7 +45,7 @@ public final class OfflinePlayerManager {
 
     public boolean spawn(MinecraftServer server, GameProfile profile, long minutes, String reason) {
         if (profile.getId() == null || players.containsKey(profile.getId()) || server.getPlayerList().getPlayer(profile.getId()) != null) return false;
-        reason = SessionMessages.reason(reason, ConfigManager.get().messages);
+        reason = SessionMessages.reason(reason);
         OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
         sessions.put(profile.getId(), session);
         restore(server, session);
@@ -76,8 +78,9 @@ public final class OfflinePlayerManager {
         float yaw = original.getYRot(), pitch = original.getXRot();
         var gameMode = original.gameMode.getGameModeForPlayer();
 
+        suppressedJoinNames.add(profile.getName().toLowerCase(Locale.ROOT));
         server.getPlayerList().remove(original);
-        original.connection.disconnect(Component.literal(ConfigManager.get().messages.unpluggedKickMessage));
+        original.connection.disconnect(Component.translatable("disconnect.unplugged_afk.unplugged"));
 
         FakeConnection connection = new FakeConnection();
         OfflinePlayer replacement = new OfflinePlayer(server, level, profile, info);
@@ -86,14 +89,15 @@ public final class OfflinePlayerManager {
         replacement.connection.teleport(x, y, z, yaw, pitch);
         replacement.gameMode.changeGameModeForPlayer(gameMode);
 
-        reason = SessionMessages.reason(reason, ConfigManager.get().messages);
+        reason = SessionMessages.reason(reason);
         OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
         sessions.put(profile.getId(), session);
         players.put(profile.getId(), replacement);
-        applyVisibility(server, replacement);
+        suppressedJoinNames.remove(profile.getName().toLowerCase(Locale.ROOT));
+        applyPresentation(server, replacement);
         UnpluggedAfkApi.fireStarted(session);
         saveSessions();
-        broadcast(server, Component.literal(SessionMessages.started(session, ConfigManager.get().messages)));
+        broadcast(server, SessionMessages.started(session, ConfigManager.get().messages));
         UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.getName(), minutes);
         return true;
     }
@@ -102,7 +106,7 @@ public final class OfflinePlayerManager {
         Instant now = Instant.now();
         for (OfflineSession session : List.copyOf(sessions.values())) {
             if (session.expired(now)) remove(server, session.uuid(), UnpluggedStatus.EXPIRED,
-                    ConfigManager.get().messages.unpluggedExpiredReason);
+                    "message.unplugged_afk.reason.timeout");
         }
     }
 
@@ -116,7 +120,7 @@ public final class OfflinePlayerManager {
             if (session.status() != UnpluggedStatus.ACTIVE) continue;
             if (session.expired(Instant.now())) {
                 sessions.put(session.uuid(), session.ended(UnpluggedStatus.EXPIRED,
-                        ConfigManager.get().messages.unpluggedExpiredReason));
+                        "message.unplugged_afk.reason.timeout"));
                 continue;
             }
             restore(server, session);
@@ -141,7 +145,7 @@ public final class OfflinePlayerManager {
                     replacement.getYRot(), replacement.getXRot());
         }
         players.put(session.uuid(), replacement);
-        applyVisibility(server, replacement);
+        applyPresentation(server, replacement);
         UnpluggedAfkApi.fireStarted(session);
     }
 
@@ -151,20 +155,20 @@ public final class OfflinePlayerManager {
     }
 
     public boolean remove(MinecraftServer server, UUID uuid, UnpluggedStatus status, String reason) {
-        OfflinePlayer player = players.remove(uuid);
+        OfflinePlayer player = players.get(uuid);
         OfflineSession old = sessions.get(uuid);
         Instant now = Instant.now();
-        if (old != null) sessions.put(uuid, old.ended(status,
-                SessionMessages.ended(old, status, reason, now, ConfigManager.get().messages)));
+        if (old != null) sessions.put(uuid, old.ended(status, reason));
         if (player == null) return false;
         player.deactivate();
         server.getPlayerList().save(player);
         server.getPlayerList().remove(player);
+        players.remove(uuid);
         broadcastFakeLeave(server, player);
         player.discard();
         if (old != null) {
             UnpluggedAfkApi.fireEnded(sessions.get(uuid));
-            broadcast(server, Component.literal(SessionMessages.endedBroadcast(old, status, now, ConfigManager.get().messages)));
+            broadcast(server, SessionMessages.endedBroadcast(sessions.get(uuid), now, ConfigManager.get().messages));
         }
         saveSessions();
         return true;
@@ -175,8 +179,8 @@ public final class OfflinePlayerManager {
         OfflineSession previous = sessions.remove(player.getUUID());
         players.remove(player.getUUID());
         hideAllFrom(player);
-        if (previous != null && ConfigManager.get().messages.displayReturnFeedback && !previous.reason().isBlank()) {
-            player.sendSystemMessage(Component.literal(previous.reason()).withStyle(ChatFormatting.GOLD));
+        if (previous != null && ConfigManager.get().messages.displayReturnFeedback) {
+            player.sendSystemMessage(SessionMessages.feedback(previous, Instant.now(), ConfigManager.get().messages));
         }
         saveSessions();
     }
@@ -186,12 +190,12 @@ public final class OfflinePlayerManager {
         if (shadow == null) return;
         MinecraftServer server = shadow.level().getServer();
         if (server != null) {
-            remove(server, uuid, UnpluggedStatus.INTERRUPTED, "Replaced by the returning player");
+            remove(server, uuid, UnpluggedStatus.REPLACED, "");
         }
     }
 
     public void hideAllFrom(ServerPlayer viewer) {
-        for (OfflinePlayer hidden : players.values()) hideFrom(hidden, viewer);
+        for (OfflinePlayer hidden : players.values()) applyVisibility(hidden, viewer);
     }
 
     private void placeReplacement(MinecraftServer server, FakeConnection connection,
@@ -205,19 +209,32 @@ public final class OfflinePlayerManager {
         }
     }
 
-    public boolean shouldSuppressJoin(String message) {
-        if (!ConfigManager.get().messages.hideUnpluggedJoin || suppressedJoinNames.isEmpty()) return false;
-        String normalized = message.toLowerCase(Locale.ROOT);
-        return suppressedJoinNames.stream().anyMatch(normalized::contains);
+    public boolean shouldSuppressJoin(Component message) {
+        if (!ConfigManager.get().messages.hideUnpluggedJoin) return false;
+        if (!(message.getContents() instanceof TranslatableContents translated)
+                || (!translated.getKey().equals("multiplayer.player.joined")
+                && !translated.getKey().equals("multiplayer.player.left"))) return false;
+        String normalized = message.getString().toLowerCase(Locale.ROOT);
+        return suppressedJoinNames.stream().anyMatch(normalized::contains)
+                || players.values().stream()
+                .map(player -> player.getGameProfile().getName().toLowerCase(Locale.ROOT))
+                .anyMatch(normalized::contains);
     }
 
-    private void applyVisibility(MinecraftServer server, OfflinePlayer hidden) {
-        if (!ConfigManager.get().unplugged.unpluggedHidePlayer) return;
-        for (ServerPlayer viewer : server.getPlayerList().getPlayers()) hideFrom(hidden, viewer);
+    private void applyPresentation(MinecraftServer server, OfflinePlayer player) {
+        player.applyAfkPresentation();
+        server.getPlayerList().broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)));
+        for (ServerPlayer viewer : server.getPlayerList().getPlayers()) applyVisibility(player, viewer);
     }
 
-    private void hideFrom(OfflinePlayer hidden, ServerPlayer viewer) {
-        if (!ConfigManager.get().unplugged.unpluggedHidePlayer || viewer == hidden) return;
+    private void applyVisibility(OfflinePlayer hidden, ServerPlayer viewer) {
+        if (viewer == hidden) return;
+        if (!ConfigManager.get().unplugged.unpluggedHidePlayer) {
+            if (!ConfigManager.get().unplugged.showAfkInTabList) {
+                viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
+            }
+            return;
+        }
         boolean viewerIsOp = viewer.getServer() != null && viewer.getServer().getPlayerList().isOp(viewer.getGameProfile());
         if (viewerIsOp && !ConfigManager.get().unplugged.unpluggedHideFromOps) return;
         viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
@@ -225,7 +242,10 @@ public final class OfflinePlayerManager {
     }
 
     public void stop(MinecraftServer server) {
-        for (OfflinePlayer player : List.copyOf(players.values())) server.getPlayerList().save(player);
+        for (OfflinePlayer player : List.copyOf(players.values())) {
+            player.clearAfkPresentation();
+            server.getPlayerList().save(player);
+        }
         saveSessions();
         players.clear();
     }
