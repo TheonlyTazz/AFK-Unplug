@@ -6,6 +6,7 @@ import com.theonlytazz.unpluggedafk.api.UnpluggedAfkApi;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
@@ -129,8 +130,14 @@ public final class OfflinePlayerManager {
         var information = net.minecraft.server.level.ClientInformation.createDefault();
         FakeConnection connection = new FakeConnection();
         OfflinePlayer replacement = new OfflinePlayer(server, server.overworld(), profile, information);
+        BlockPos spawn = server.overworld().getRespawnData().pos();
+        replacement.snapTo(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D, 0.0F, 0.0F);
         CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, information, true);
         server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
+        if (replacement.blockPosition().equals(BlockPos.ZERO)) {
+            replacement.snapTo(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D,
+                    replacement.getYRot(), replacement.getXRot());
+        }
         players.put(session.uuid(), replacement);
         applyVisibility(server, replacement);
         UnpluggedAfkApi.fireStarted(session);
