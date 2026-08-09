@@ -26,6 +26,7 @@ neoForge {
             programArgument '--nogui'
         }
         configureEach { logLevel = org.slf4j.event.Level.INFO }
+        configureEach { gameDirectory = project.file("run-${minecraft_version}") }
     }
     mods {
         "${mod_id}" { sourceSet(sourceSets.main) }
