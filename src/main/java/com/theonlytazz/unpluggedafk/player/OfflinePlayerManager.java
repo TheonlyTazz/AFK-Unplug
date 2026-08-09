@@ -44,6 +44,7 @@ public final class OfflinePlayerManager {
 
     public boolean spawn(MinecraftServer server, NameAndId profile, long minutes, String reason) {
         if (players.containsKey(profile.id()) || server.getPlayerList().getPlayer(profile.id()) != null) return false;
+        reason = SessionMessages.reason(reason, ConfigManager.get().messages);
         OfflineSession session = OfflineSession.active(profile.id(), profile.name(), minutes, reason);
         sessions.put(profile.id(), session);
         restore(server, session);
@@ -86,13 +87,14 @@ public final class OfflinePlayerManager {
         replacement.connection.teleport(x, y, z, yaw, pitch);
         replacement.gameMode.changeGameModeForPlayer(gameMode);
 
+        reason = SessionMessages.reason(reason, ConfigManager.get().messages);
         OfflineSession session = OfflineSession.active(profile.id(), profile.name(), minutes, reason);
         sessions.put(profile.id(), session);
         players.put(profile.id(), replacement);
         applyVisibility(server, replacement);
         UnpluggedAfkApi.fireStarted(session);
         saveSessions();
-        broadcast(server, Component.literal(profile.name() + ConfigManager.get().messages.unpluggedStarted));
+        broadcast(server, Component.literal(SessionMessages.started(session, ConfigManager.get().messages)));
         UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.name(), minutes);
         return true;
     }
@@ -152,13 +154,18 @@ public final class OfflinePlayerManager {
     public boolean remove(MinecraftServer server, UUID uuid, UnpluggedStatus status, String reason) {
         OfflinePlayer player = players.remove(uuid);
         OfflineSession old = sessions.get(uuid);
-        if (old != null) sessions.put(uuid, old.ended(status, reason));
+        Instant now = Instant.now();
+        if (old != null) sessions.put(uuid, old.ended(status,
+                SessionMessages.ended(old, status, reason, now, ConfigManager.get().messages)));
         if (player == null) return false;
         player.deactivate();
         server.getPlayerList().save(player);
         server.getPlayerList().remove(player);
         player.discard();
-        if (old != null) UnpluggedAfkApi.fireEnded(sessions.get(uuid));
+        if (old != null) {
+            UnpluggedAfkApi.fireEnded(sessions.get(uuid));
+            broadcast(server, Component.literal(SessionMessages.endedBroadcast(old, status, now, ConfigManager.get().messages)));
+        }
         saveSessions();
         return true;
     }
