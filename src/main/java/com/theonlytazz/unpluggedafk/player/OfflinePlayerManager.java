@@ -173,6 +173,15 @@ public final class OfflinePlayerManager {
         saveSessions();
     }
 
+    public void prepareRealLogin(UUID uuid) {
+        OfflinePlayer shadow = players.get(uuid);
+        if (shadow == null) return;
+        MinecraftServer server = shadow.level().getServer();
+        if (server != null) {
+            remove(server, uuid, UnpluggedStatus.INTERRUPTED, "Replaced by the returning player");
+        }
+    }
+
     public void hideAllFrom(ServerPlayer viewer) {
         for (OfflinePlayer hidden : players.values()) hideFrom(hidden, viewer);
     }
