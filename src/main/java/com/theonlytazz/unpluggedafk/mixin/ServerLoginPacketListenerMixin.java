@@ -15,7 +15,7 @@ import java.net.SocketAddress;
 @Mixin(ServerLoginPacketListenerImpl.class)
 abstract class ServerLoginPacketListenerMixin {
     @WrapOperation(
-            method = "handleAcceptedLogin",
+            method = "verifyLoginAndFinishConnectionSetup",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lcom/mojang/authlib/GameProfile;)Lnet/minecraft/network/chat/Component;")
     )
     private Component unpluggedAfk$replaceShadowBeforeLogin(PlayerList playerList, SocketAddress address,
