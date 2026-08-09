@@ -31,8 +31,9 @@ versions are not binary-compatible.
 - `/unplugged-admin save|reload|purge`
 - `/unplugged-admin spawn <player> [minutes] [reason]`
 - `/unplugged-admin kick <player>`
-- `/unplugged-admin set enabled|disableDamage|defaultTimeout <value>` when
-  `advancedAdminOptions` is enabled.
+- `/unplugged-admin set <section.option> <value>` can update any primitive
+  configuration field when `main.advancedAdminOptions` is enabled. Command
+  suggestions list the available dotted option names; use `&` for color codes.
 
 Configuration is generated at `config/unplugged_afk.json`. Active and ended
 session state is stored in `<world>/unplugged_afk_sessions.json`; normal
@@ -61,6 +62,24 @@ Accept the EULA in the generated versioned run directory first (for example,
 `run-1.21.1/eula.txt`). Dedicated-server testing
 is strongly recommended because fake players exercise login, playerdata and
 chunk-tracking code that a client-only launch does not cover.
+
+### IntelliJ client launch recovery
+
+The generated development runs use different Java versions. Set IntelliJ's
+Gradle JVM and the Minecraft run configuration JRE to Java 21 on
+`neoforge-1.21.1`, or Java 25 on `neoforge-26.1.2`. After changing branches or
+JDKs, reload the Gradle project and regenerate the run files with:
+
+```powershell
+.\gradlew.bat neoForgeIdeSync prepareClientRun
+```
+
+This recreates `build/moddev/clientRunVmArgs.txt` and
+`clientRunProgramArgs.txt`. If IntelliJ still launches 1.21.1 with Java 25,
+delete its stale Minecraft client run configuration, reload Gradle, and use
+the newly generated configuration. An error mentioning
+`MethodHandles.Lookup.IMPL_LOOKUP` is a reliable sign that 1.21.1 was started
+on the wrong JDK.
 
 ## Implementation notes
 
