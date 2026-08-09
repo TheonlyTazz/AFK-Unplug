@@ -39,6 +39,20 @@ class ConfigManagerTest {
     }
 
     @Test
+    void migratesLegacyMessageConfigToVisibleStatusDefaults() throws Exception {
+        Path path = directory.resolve("unplugged_afk.json");
+        Files.writeString(path, """
+                {"messages":{"broadcastMessages":false,"hideUnpluggedJoin":false,"unpluggedStarted":" legacy"}}
+                """);
+
+        ConfigManager.initialize(path);
+
+        assertTrue(ConfigManager.get().messages.broadcastMessages);
+        assertTrue(ConfigManager.get().messages.hideUnpluggedJoin);
+        assertFalse(Files.readString(path).contains("unpluggedStarted"));
+    }
+
+    @Test
     void normalizationClampsUnsafeValues() {
         UnpluggedConfig config = new UnpluggedConfig();
         config.commands.unplugCommandPermissions = 99;
