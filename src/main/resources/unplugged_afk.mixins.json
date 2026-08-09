@@ -5,7 +5,8 @@
   "mixins": [
     "EntityAuthorityMixin",
     "PistonMovingBlockEntityMixin",
-    "PlayerListMixin"
+    "PlayerListMixin",
+    "ServerLoginPacketListenerMixin"
   ],
   "injectors": {"defaultRequire": 1}
 }
