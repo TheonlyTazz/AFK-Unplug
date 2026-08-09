@@ -11,9 +11,6 @@ import net.minecraft.world.damagesource.DamageSource;
 
 public final class OfflinePlayer extends ServerPlayer {
     private boolean active = true;
-    private Component previousCustomName;
-    private boolean previousCustomNameVisible;
-    private boolean afkPresentationApplied;
 
     OfflinePlayer(MinecraftServer server, ServerLevel level, GameProfile profile, ClientInformation information) {
         super(server, level, profile, information);
@@ -25,25 +22,6 @@ public final class OfflinePlayer extends ServerPlayer {
 
     void deactivate() {
         active = false;
-        clearAfkPresentation();
-    }
-
-    void applyAfkPresentation() {
-        if (afkPresentationApplied) return;
-        previousCustomName = getCustomName();
-        previousCustomNameVisible = isCustomNameVisible();
-        afkPresentationApplied = true;
-        if (ConfigManager.get().unplugged.showAfkNameplate) {
-            setCustomName(afkDisplayName());
-            setCustomNameVisible(true);
-        }
-    }
-
-    void clearAfkPresentation() {
-        if (!afkPresentationApplied) return;
-        setCustomName(previousCustomName);
-        setCustomNameVisible(previousCustomNameVisible);
-        afkPresentationApplied = false;
     }
 
     private Component afkDisplayName() {
