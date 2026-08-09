@@ -2,6 +2,7 @@ package com.theonlytazz.unpluggedafk.player;
 
 import com.mojang.authlib.GameProfile;
 import com.theonlytazz.unpluggedafk.UnpluggedAfk;
+import com.theonlytazz.unpluggedafk.Translations;
 import com.theonlytazz.unpluggedafk.api.UnpluggedAfkApi;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
@@ -83,7 +84,7 @@ public final class OfflinePlayerManager {
 
         suppressedJoinNames.add(profile.getName().toLowerCase(Locale.ROOT));
         server.getPlayerList().remove(original);
-        original.connection.disconnect(Component.translatable("disconnect.unplugged_afk.unplugged"));
+        original.connection.disconnect(Translations.component("disconnect.unplugged_afk.unplugged"));
 
         FakeConnection connection = new FakeConnection();
         OfflinePlayer replacement = new OfflinePlayer(server, level, profile, info);
@@ -249,7 +250,7 @@ public final class OfflinePlayerManager {
 
     private static PlayerTeam afkTeam(OfflinePlayer player) {
         PlayerTeam team = new PlayerTeam(new Scoreboard(), "uafk" + player.getUUID().toString().replace("-", "").substring(0, 12));
-        team.setPlayerSuffix(Component.literal(" ").append(Component.translatable("label.unplugged_afk.afk")));
+        team.setPlayerSuffix(Component.literal(" ").append(Translations.component("label.unplugged_afk.afk")));
         team.getPlayers().add(player.getGameProfile().getName());
         return team;
     }

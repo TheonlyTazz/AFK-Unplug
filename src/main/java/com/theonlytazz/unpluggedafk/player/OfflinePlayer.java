@@ -2,6 +2,7 @@ package com.theonlytazz.unpluggedafk.player;
 
 import com.mojang.authlib.GameProfile;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
+import com.theonlytazz.unpluggedafk.Translations;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
@@ -26,7 +27,7 @@ public final class OfflinePlayer extends ServerPlayer {
 
     private Component afkDisplayName() {
         return Component.literal(getGameProfile().getName() + " ")
-                .append(Component.translatable("label.unplugged_afk.afk"));
+                .append(Translations.component("label.unplugged_afk.afk"));
     }
 
     @Override

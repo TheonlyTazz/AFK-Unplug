@@ -1,6 +1,7 @@
 package com.theonlytazz.unpluggedafk.player;
 
 import com.theonlytazz.unpluggedafk.config.UnpluggedConfig;
+import com.theonlytazz.unpluggedafk.Translations;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -16,9 +17,9 @@ final class SessionMessages {
     }
 
     static Component started(OfflineSession session, UnpluggedConfig.Messages options) {
-        MutableComponent result = Component.translatable("message.unplugged_afk.started", session.name());
+        MutableComponent result = Translations.component("message.unplugged_afk.started", session.name());
         if (options.displayDuration) {
-            result.append(Component.translatable("message.unplugged_afk.started.duration", session.timeoutMinutes()));
+            result.append(Translations.component("message.unplugged_afk.started.duration", session.timeoutMinutes()));
         }
         appendDetail(result, session.reason());
         return result;
@@ -26,12 +27,12 @@ final class SessionMessages {
 
     static Component feedback(OfflineSession session, Instant now, UnpluggedConfig.Messages options) {
         boolean successful = session.status() == UnpluggedStatus.EXPIRED || session.status() == UnpluggedStatus.REPLACED;
-        MutableComponent result = Component.translatable(successful
+        MutableComponent result = Translations.component(successful
                 ? "message.unplugged_afk.feedback.success"
                 : "message.unplugged_afk.feedback.interrupted");
         if (options.displayDuration) {
             long elapsed = Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli());
-            result.append(Component.translatable("message.unplugged_afk.feedback.duration", formatDuration(elapsed)));
+            result.append(Translations.component("message.unplugged_afk.feedback.duration", formatDuration(elapsed)));
         }
         appendDetail(result, session.reason());
         return result;
@@ -44,10 +45,10 @@ final class SessionMessages {
             case TERMINATED -> "message.unplugged_afk.terminated";
             default -> "message.unplugged_afk.interrupted";
         };
-        MutableComponent result = Component.translatable(key, session.name());
+        MutableComponent result = Translations.component(key, session.name());
         if (options.displayDuration) {
             long elapsed = Math.max(0, now.toEpochMilli() - session.startedAtEpochMilli());
-            result.append(Component.translatable("message.unplugged_afk.returned.duration", formatDuration(elapsed)));
+            result.append(Translations.component("message.unplugged_afk.returned.duration", formatDuration(elapsed)));
         }
         return result;
     }
@@ -55,9 +56,9 @@ final class SessionMessages {
     private static void appendDetail(MutableComponent target, String detail) {
         if (detail == null || detail.isBlank()) return;
         Component value = detail.startsWith("message.unplugged_afk.")
-                ? Component.translatable(detail)
+                ? Translations.component(detail)
                 : Component.literal(detail);
-        target.append(Component.translatable("message.unplugged_afk.detail", value));
+        target.append(Translations.component("message.unplugged_afk.detail", value));
     }
 
     private static Component formatDuration(long millis) {
@@ -65,8 +66,8 @@ final class SessionMessages {
         long hours = duration.toHours();
         long minutes = duration.minusHours(hours).toMinutes();
         long seconds = duration.minusHours(hours).minusMinutes(minutes).toSeconds();
-        if (hours > 0) return Component.translatable("duration.unplugged_afk.hours_minutes", hours, minutes);
-        if (minutes > 0) return Component.translatable("duration.unplugged_afk.minutes_seconds", minutes, seconds);
-        return Component.translatable("duration.unplugged_afk.seconds", seconds);
+        if (hours > 0) return Translations.component("duration.unplugged_afk.hours_minutes", hours, minutes);
+        if (minutes > 0) return Translations.component("duration.unplugged_afk.minutes_seconds", minutes, seconds);
+        return Translations.component("duration.unplugged_afk.seconds", seconds);
     }
 }

@@ -3,6 +3,8 @@ package com.theonlytazz.unpluggedafk.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.theonlytazz.unpluggedafk.UnpluggedAfk;
 
 import java.io.IOException;
@@ -37,7 +39,14 @@ public final class ConfigManager {
         UnpluggedConfig loaded = new UnpluggedConfig();
         if (Files.isRegularFile(path)) {
             try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                UnpluggedConfig parsed = GSON.fromJson(reader, UnpluggedConfig.class);
+                JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+                boolean legacyMessages = root.has("messages")
+                        && root.getAsJsonObject("messages").has("unpluggedStarted");
+                UnpluggedConfig parsed = GSON.fromJson(root, UnpluggedConfig.class);
+                if (legacyMessages && parsed != null) {
+                    parsed.messages.broadcastMessages = true;
+                    parsed.messages.hideUnpluggedJoin = true;
+                }
                 if (parsed != null) loaded = parsed;
             } catch (IOException | JsonParseException exception) {
                 UnpluggedAfk.LOGGER.error("Could not read {}; retaining safe defaults", path, exception);
