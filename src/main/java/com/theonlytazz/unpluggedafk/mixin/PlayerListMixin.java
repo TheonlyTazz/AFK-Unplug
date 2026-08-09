@@ -13,6 +13,6 @@ abstract class PlayerListMixin {
     @Inject(method = "broadcastSystemMessage(Lnet/minecraft/network/chat/Component;Z)V",
             at = @At("HEAD"), cancellable = true)
     private void unpluggedAfk$suppressSyntheticJoin(Component message, boolean overlay, CallbackInfo callback) {
-        if (OfflinePlayerManager.get().shouldSuppressJoin(message.getString())) callback.cancel();
+        if (OfflinePlayerManager.get().shouldSuppressJoin(message)) callback.cancel();
     }
 }

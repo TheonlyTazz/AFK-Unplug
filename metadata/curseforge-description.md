@@ -13,6 +13,7 @@ Unplugged AFK lets you leave a server without leaving your computer running besi
 - **Restart recovery:** Active unplugged sessions are persisted and restored after a server restart.
 - **Safety controls:** Server owners can configure damage handling, death behavior, visibility, status messages, and command permissions.
 - **Admin tools:** Operators can inspect, spawn, remove, list, save, reload, and repair unplugged sessions.
+- **Clear AFK status:** Stand-ins are marked `[AFK]` above their head and in the TAB list, with independent server-side toggles.
 
 ## Player commands
 

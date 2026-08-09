@@ -39,7 +39,7 @@ final class UnpluggedEvents {
     private static int unplug(ServerPlayer player, long minutes, String reason) {
         var server = player.level().getServer();
         if (server != null && server.isSingleplayerOwner(player.nameAndId())) {
-            player.sendSystemMessage(Component.literal("The integrated-server owner cannot unplug."));
+            player.sendSystemMessage(Component.translatable("command.unplugged_afk.singleplayer_owner"));
             return 0;
         }
         return OfflinePlayerManager.get().unplug(player, minutes, reason) ? 1 : 0;

@@ -18,12 +18,12 @@ class ConfigManagerTest {
         assertTrue(Files.isRegularFile(path));
         assertTrue(ConfigManager.get().main.unpluggedAfkEnabled);
 
-        ConfigManager.get().messages.whenUnpluggedReturned = " returned";
+        ConfigManager.get().messages.displayReturnFeedback = true;
         ConfigManager.get().unplugged.defaultUnpluggedTimeout = 42;
         ConfigManager.save();
         ConfigManager.reload();
 
-        assertEquals(" returned", ConfigManager.get().messages.whenUnpluggedReturned);
+        assertTrue(ConfigManager.get().messages.displayReturnFeedback);
         assertEquals(42, ConfigManager.get().unplugged.defaultUnpluggedTimeout);
     }
 
@@ -54,14 +54,14 @@ class ConfigManagerTest {
     @Test
     void advancedOptionSetterSupportsEveryPrimitiveSectionField() {
         ConfigManager.initialize(directory.resolve("unplugged_afk.json"));
-        assertTrue(ConfigManager.optionNames().contains("messages.whenUnpluggedReturned"));
+        assertTrue(ConfigManager.optionNames().contains("messages.displayReturnFeedback"));
         assertTrue(ConfigManager.setOption("main.debugMode", "true"));
         assertTrue(ConfigManager.setOption("unplugged.defaultUnpluggedTimeout", "15"));
-        assertTrue(ConfigManager.setOption("messages.unpluggedStarted", "&a away"));
+        assertTrue(ConfigManager.setOption("messages.displayDuration", "true"));
         assertFalse(ConfigManager.setOption("main.debugMode", "perhaps"));
         assertFalse(ConfigManager.setOption("missing.option", "true"));
         assertTrue(ConfigManager.get().main.debugMode);
         assertEquals(15, ConfigManager.get().unplugged.defaultUnpluggedTimeout);
-        assertEquals("§a away", ConfigManager.get().messages.unpluggedStarted);
+        assertTrue(ConfigManager.get().messages.displayDuration);
     }
 }

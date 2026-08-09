@@ -59,44 +59,44 @@ final class AdminCommands {
     }
 
     private static int info(CommandSourceStack source) {
-        source.sendSuccess(() -> Component.literal("Unplugged AFK NeoForge: "
-                + OfflinePlayerManager.get().activeCount() + " active, "
-                + OfflinePlayerManager.get().sessions().size() + " tracked session(s)"), false);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.info",
+                OfflinePlayerManager.get().activeCount(), OfflinePlayerManager.get().sessions().size()), false);
         return 1;
     }
 
     private static int playerInfo(CommandSourceStack source, Collection<NameAndId> profiles) {
         for (NameAndId profile : profiles) {
-            source.sendSuccess(() -> Component.literal(profile.name() + ": "
-                    + OfflinePlayerManager.get().session(profile.id()).map(Object::toString).orElse("not tracked")), false);
+            source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.player_info", profile.name(),
+                    OfflinePlayerManager.get().session(profile.id()).map(Object::toString)
+                            .orElseGet(() -> Component.translatable("command.unplugged_afk.admin.not_tracked").getString())), false);
         }
         return profiles.size();
     }
 
     private static int list(CommandSourceStack source) {
         var sessions = OfflinePlayerManager.get().sessions();
-        if (sessions.isEmpty()) source.sendSuccess(() -> Component.literal("No tracked unplugged players."), false);
-        sessions.forEach(session -> source.sendSuccess(() -> Component.literal(session.name() + " — " + session.status()
-                + " (" + session.timeoutMinutes() + " min)"), false));
+        if (sessions.isEmpty()) source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.list.empty"), false);
+        sessions.forEach(session -> source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.list.entry",
+                session.name(), session.status(), session.timeoutMinutes()), false));
         return sessions.size();
     }
 
     private static int save(CommandSourceStack source) {
         ConfigManager.save();
         OfflinePlayerManager.get().saveSessions();
-        source.sendSuccess(() -> Component.literal("Unplugged AFK state saved."), true);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.saved"), true);
         return 1;
     }
 
     private static int reload(CommandSourceStack source) {
         ConfigManager.reload();
-        source.sendSuccess(() -> Component.literal("Unplugged AFK configuration reloaded."), true);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.reloaded"), true);
         return 1;
     }
 
     private static int purge(CommandSourceStack source) {
         int removed = OfflinePlayerManager.get().purgeEnded();
-        source.sendSuccess(() -> Component.literal("Purged " + removed + " ended session(s)."), true);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.purged", removed), true);
         return removed;
     }
 
@@ -104,10 +104,10 @@ final class AdminCommands {
         int removed = 0;
         for (NameAndId profile : profiles) {
             if (OfflinePlayerManager.get().remove(source.getServer(), profile.id(), UnpluggedStatus.TERMINATED,
-                    ConfigManager.get().messages.unpluggedTerminated)) removed++;
+                    "message.unplugged_afk.reason.admin")) removed++;
         }
         int count = removed;
-        source.sendSuccess(() -> Component.literal("Removed " + count + " offline player(s)."), true);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.removed", count), true);
         return removed;
     }
 
@@ -130,10 +130,10 @@ final class AdminCommands {
 
     private static int setOption(CommandSourceStack source, String key, String value) {
         if (!ConfigManager.setOption(key, value)) {
-            source.sendFailure(Component.literal("Unknown option or invalid value: " + key));
+            source.sendFailure(Component.translatable("command.unplugged_afk.admin.set.invalid", key));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("Set " + key + " to " + value), true);
+        source.sendSuccess(() -> Component.translatable("command.unplugged_afk.admin.set.success", key, value), true);
         return 1;
     }
 }
