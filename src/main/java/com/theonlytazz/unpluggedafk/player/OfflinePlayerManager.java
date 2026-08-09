@@ -31,6 +31,7 @@ public final class OfflinePlayerManager {
     private static final OfflinePlayerManager INSTANCE = new OfflinePlayerManager();
     private final Map<UUID, OfflineSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, OfflinePlayer> players = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> pendingPlayerInfoRefreshes = new ConcurrentHashMap<>();
     private final Set<String> suppressedJoinNames = ConcurrentHashMap.newKeySet();
     private Path storePath;
 
@@ -100,6 +101,7 @@ public final class OfflinePlayerManager {
         players.put(profile.id(), replacement);
         suppressedJoinNames.remove(profile.name().toLowerCase(Locale.ROOT));
         applyPresentation(server, replacement);
+        pendingPlayerInfoRefreshes.put(profile.id(), 2);
         UnpluggedAfkApi.fireStarted(session);
         saveSessions();
         broadcast(server, SessionMessages.started(session, ConfigManager.get().messages));
@@ -108,6 +110,16 @@ public final class OfflinePlayerManager {
     }
 
     public void tick(MinecraftServer server) {
+        for (var entry : List.copyOf(pendingPlayerInfoRefreshes.entrySet())) {
+            if (entry.getValue() > 1) {
+                pendingPlayerInfoRefreshes.put(entry.getKey(), entry.getValue() - 1);
+                continue;
+            }
+            pendingPlayerInfoRefreshes.remove(entry.getKey());
+            OfflinePlayer player = players.get(entry.getKey());
+            if (player != null) refreshPlayerInfo(server, player);
+        }
+
         Instant now = Instant.now();
         for (OfflineSession session : List.copyOf(sessions.values())) {
             if (session.expired(now)) remove(server, session.uuid(), UnpluggedStatus.EXPIRED,
@@ -117,6 +129,7 @@ public final class OfflinePlayerManager {
 
     public void start(MinecraftServer server) {
         players.clear();
+        pendingPlayerInfoRefreshes.clear();
         sessions.clear();
         storePath = server.getWorldPath(LevelResource.ROOT).resolve("unplugged_afk_sessions.json");
         for (OfflineSession session : SessionStore.load(storePath)) sessions.put(session.uuid(), session);
@@ -161,6 +174,7 @@ public final class OfflinePlayerManager {
 
     public boolean remove(MinecraftServer server, UUID uuid, UnpluggedStatus status, String reason) {
         OfflinePlayer player = players.get(uuid);
+        pendingPlayerInfoRefreshes.remove(uuid);
         OfflineSession old = sessions.get(uuid);
         Instant now = Instant.now();
         if (old != null) sessions.put(uuid, old.ended(status, reason));
@@ -232,22 +246,36 @@ public final class OfflinePlayerManager {
         for (ServerPlayer viewer : server.getPlayerList().getPlayers()) applyVisibility(player, viewer);
     }
 
+    private void refreshPlayerInfo(MinecraftServer server, OfflinePlayer player) {
+        server.getPlayerList().broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)));
+        for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
+            if (viewer != player && (shouldHideFrom(player, viewer)
+                    || !ConfigManager.get().unplugged.showAfkInTabList)) {
+                viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
+            }
+        }
+    }
+
     private void applyVisibility(OfflinePlayer hidden, ServerPlayer viewer) {
         if (viewer == hidden) return;
-        if (!ConfigManager.get().unplugged.unpluggedHidePlayer) {
-            if (ConfigManager.get().unplugged.showAfkNameplate) {
-                viewer.connection.send(ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(afkTeam(hidden), true));
-            }
-            if (!ConfigManager.get().unplugged.showAfkInTabList) {
-                viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
-            }
+        if (shouldHideFrom(hidden, viewer)) {
+            viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
+            viewer.connection.send(new ClientboundRemoveEntitiesPacket(hidden.getId()));
             return;
         }
+        if (ConfigManager.get().unplugged.showAfkNameplate) {
+            viewer.connection.send(ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(afkTeam(hidden), true));
+        }
+        if (!ConfigManager.get().unplugged.showAfkInTabList) {
+            viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
+        }
+    }
+
+    private static boolean shouldHideFrom(OfflinePlayer hidden, ServerPlayer viewer) {
+        if (!ConfigManager.get().unplugged.unpluggedHidePlayer || viewer == hidden) return false;
         MinecraftServer viewerServer = viewer.level().getServer();
         boolean viewerIsOp = viewerServer != null && viewerServer.getPlayerList().isOp(viewer.nameAndId());
-        if (viewerIsOp && !ConfigManager.get().unplugged.unpluggedHideFromOps) return;
-        viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
-        viewer.connection.send(new ClientboundRemoveEntitiesPacket(hidden.getId()));
+        return !viewerIsOp || ConfigManager.get().unplugged.unpluggedHideFromOps;
     }
 
     private static PlayerTeam afkTeam(OfflinePlayer player) {
@@ -271,6 +299,7 @@ public final class OfflinePlayerManager {
         }
         saveSessions();
         players.clear();
+        pendingPlayerInfoRefreshes.clear();
     }
 
     public void saveSessions() {
