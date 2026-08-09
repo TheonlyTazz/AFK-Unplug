@@ -15,6 +15,12 @@ their farm. No client installation is required.
 Use the JAR built from the branch matching the server. The two Minecraft
 versions are not binary-compatible.
 
+> **Java is version-specific:** launch Minecraft 1.21.1 with Java 21 and
+> Minecraft 26.1.2 with Java 25. In particular, do not run the 1.21.1
+> NeoForge/FML stack on Java 25; older loader/coremod code can fail during
+> bootstrap with an `InaccessibleObjectException` mentioning
+> `MethodHandles.Lookup.IMPL_LOOKUP` before this mod is initialized.
+
 ## Commands
 
 - `/unplug [minutes] [reason]` leaves an offline replacement and disconnects
@@ -51,7 +57,8 @@ For a dedicated-server development launch:
 .\gradlew.bat runServer
 ```
 
-Accept the EULA in the generated `run/eula.txt` first. Dedicated-server testing
+Accept the EULA in the generated versioned run directory first (for example,
+`run-1.21.1/eula.txt`). Dedicated-server testing
 is strongly recommended because fake players exercise login, playerdata and
 chunk-tracking code that a client-only launch does not cover.
 

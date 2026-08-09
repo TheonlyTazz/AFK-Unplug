@@ -3,6 +3,7 @@ build/
 out/
 run/
 runs/
+run-*/
 .idea/
 *.iml
 *.ipr
@@ -14,4 +15,3 @@ bin/
 .project
 logs/
 *.log
-
