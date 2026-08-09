@@ -94,6 +94,9 @@ on the wrong JDK.
 
 ## CurseForge publishing
 
+The ready-to-paste CurseForge project page copy is in
+[`metadata/curseforge-description.md`](metadata/curseforge-description.md).
+
 Create a CurseForge project, copy `.env.example` to `.env`, and fill in:
 
 ```dotenv
