@@ -1,10 +1,26 @@
 plugins {
     id 'java-library'
     id 'net.neoforged.moddev' version '2.0.143'
+    id 'me.modmuss50.mod-publish-plugin' version '1.1.0'
 }
 
 version = mod_version
 group = mod_group_id
+
+def localEnv = [:]
+def localEnvFile = file('.env')
+if (localEnvFile.isFile()) {
+    localEnvFile.eachLine { line ->
+        def trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#') || !trimmed.contains('=')) return
+        def parts = trimmed.split('=', 2)
+        localEnv[parts[0].trim()] = parts[1].trim().replaceAll(/^['"]|['"]$/, '')
+    }
+}
+
+def publishingSecret = { String name ->
+    providers.environmentVariable(name).orElse(providers.provider { localEnv[name] })
+}
 
 base {
     archivesName = "${mod_id}-neoforge-${minecraft_version}"
@@ -72,4 +88,48 @@ neoForge.ideSyncTask generateModMetadata
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 21
+}
+
+def publishModVersion = mod_version.toString()
+def publishChangelogFile = file("metadata/changelogs/${publishModVersion}.md")
+def curseForgeToken = publishingSecret('CURSEFORGE_TOKEN')
+def curseForgeProjectId = publishingSecret('CURSEFORGE_PROJECT_ID')
+def curseForgeProjectSlug = publishingSecret('CURSEFORGE_PROJECT_SLUG')
+
+publishMods {
+    file = jar.archiveFile
+    changelog = publishChangelogFile.exists() ? publishChangelogFile.text.trim() : ''
+    type = ALPHA
+    modLoaders.add('neoforge')
+
+    curseforge {
+        projectId = curseForgeProjectId
+        projectSlug = curseForgeProjectSlug
+        accessToken = curseForgeToken
+        minecraftVersions.add(minecraft_version)
+    }
+}
+
+def validateCurseForgePublish = tasks.register('validateCurseForgePublish') {
+    inputs.file(publishChangelogFile)
+
+    doLast {
+        if (!publishChangelogFile.isFile() || publishChangelogFile.text.trim().isEmpty()) {
+            throw new GradleException("${publishChangelogFile} is required and must not be empty.")
+        }
+        if (!publishChangelogFile.text.contains(publishModVersion)) {
+            throw new GradleException("${publishChangelogFile} must mention mod_version ${publishModVersion}.")
+        }
+        [CURSEFORGE_TOKEN: curseForgeToken,
+         CURSEFORGE_PROJECT_ID: curseForgeProjectId,
+         CURSEFORGE_PROJECT_SLUG: curseForgeProjectSlug].each { name, value ->
+            if (!value.isPresent() || value.get().trim().isEmpty()) {
+                throw new GradleException("${name} must be set in the environment or the ignored .env file.")
+            }
+        }
+    }
+}
+
+tasks.named('publishCurseforge') {
+    dependsOn validateCurseForgePublish
 }

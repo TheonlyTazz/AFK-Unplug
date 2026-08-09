@@ -92,6 +92,26 @@ on the wrong JDK.
 - Visibility mode removes hidden replacements from both entity tracking and
   the player-info list, with a separate operator exception.
 
+## CurseForge publishing
+
+Create a CurseForge project, copy `.env.example` to `.env`, and fill in:
+
+```dotenv
+CURSEFORGE_TOKEN=your-upload-token
+CURSEFORGE_PROJECT_ID=your-numeric-project-id
+CURSEFORGE_PROJECT_SLUG=your-project-slug
+```
+
+The `.env` file is ignored by Git. Publish the checked-out version branch with:
+
+```powershell
+.\gradlew.bat publishCurseforge
+```
+
+Publishing uses the JAR from `build/libs`, marks the release as alpha, attaches
+the matching Minecraft version and NeoForge loader metadata, and requires a
+non-empty `metadata/changelogs/<mod_version>.md` file before upload.
+
 
 ## License and attribution
 
