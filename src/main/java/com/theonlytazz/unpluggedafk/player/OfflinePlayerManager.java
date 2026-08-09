@@ -33,6 +33,7 @@ public final class OfflinePlayerManager {
     private final Map<UUID, OfflinePlayer> players = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> pendingPlayerInfoRefreshes = new ConcurrentHashMap<>();
     private final Set<String> suppressedJoinNames = ConcurrentHashMap.newKeySet();
+    private final Map<String, Integer> pendingStatusSuppressions = new ConcurrentHashMap<>();
     private Path storePath;
 
     private OfflinePlayerManager() {}
@@ -110,6 +111,15 @@ public final class OfflinePlayerManager {
     }
 
     public void tick(MinecraftServer server) {
+        for (var entry : List.copyOf(pendingStatusSuppressions.entrySet())) {
+            if (entry.getValue() > 1) {
+                pendingStatusSuppressions.put(entry.getKey(), entry.getValue() - 1);
+            } else {
+                pendingStatusSuppressions.remove(entry.getKey());
+                suppressedJoinNames.remove(entry.getKey());
+            }
+        }
+
         for (var entry : List.copyOf(pendingPlayerInfoRefreshes.entrySet())) {
             if (entry.getValue() > 1) {
                 pendingPlayerInfoRefreshes.put(entry.getKey(), entry.getValue() - 1);
@@ -130,6 +140,8 @@ public final class OfflinePlayerManager {
     public void start(MinecraftServer server) {
         players.clear();
         pendingPlayerInfoRefreshes.clear();
+        suppressedJoinNames.clear();
+        pendingStatusSuppressions.clear();
         sessions.clear();
         storePath = server.getWorldPath(LevelResource.ROOT).resolve("unplugged_afk_sessions.json");
         for (OfflineSession session : SessionStore.load(storePath)) sessions.put(session.uuid(), session);
@@ -208,6 +220,9 @@ public final class OfflinePlayerManager {
     public void prepareRealLogin(UUID uuid) {
         OfflinePlayer shadow = players.get(uuid);
         if (shadow == null) return;
+        String name = shadow.nameAndId().name().toLowerCase(Locale.ROOT);
+        suppressedJoinNames.add(name);
+        pendingStatusSuppressions.put(name, 2);
         MinecraftServer server = shadow.level().getServer();
         if (server != null) {
             remove(server, uuid, UnpluggedStatus.REPLACED, "");
@@ -300,6 +315,8 @@ public final class OfflinePlayerManager {
         saveSessions();
         players.clear();
         pendingPlayerInfoRefreshes.clear();
+        suppressedJoinNames.clear();
+        pendingStatusSuppressions.clear();
     }
 
     public void saveSessions() {
