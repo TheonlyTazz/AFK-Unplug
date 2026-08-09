@@ -160,6 +160,7 @@ public final class OfflinePlayerManager {
         player.deactivate();
         server.getPlayerList().save(player);
         server.getPlayerList().remove(player);
+        broadcastFakeLeave(server, player);
         player.discard();
         if (old != null) {
             UnpluggedAfkApi.fireEnded(sessions.get(uuid));
@@ -237,5 +238,12 @@ public final class OfflinePlayerManager {
         if (!ConfigManager.get().messages.broadcastMessages) return;
         server.sendSystemMessage(message);
         server.getPlayerList().broadcastSystemMessage(message, false);
+    }
+
+    private static void broadcastFakeLeave(MinecraftServer server, OfflinePlayer player) {
+        if (ConfigManager.get().messages.hideUnpluggedJoin) return;
+        server.getPlayerList().broadcastSystemMessage(
+                Component.translatable("multiplayer.player.left", player.getDisplayName())
+                        .withStyle(ChatFormatting.YELLOW), false);
     }
 }
