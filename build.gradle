@@ -37,6 +37,7 @@ dependencies {
 }
 
 tasks.named('test', Test) { useJUnitPlatform() }
+tasks.named('runServer') { standardInput = System.in }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
     var props = [minecraft_version_range: minecraft_version_range,
