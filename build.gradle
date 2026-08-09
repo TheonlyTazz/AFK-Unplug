@@ -89,8 +89,12 @@ tasks.withType(JavaCompile).configureEach {
 def publishModVersion = mod_version.toString()
 def publishChangelogFile = file("metadata/changelogs/${publishModVersion}.md")
 def curseForgeToken = publishingSecret('CURSEFORGE_TOKEN')
-def curseForgeProjectId = publishingSecret('CURSEFORGE_PROJECT_ID')
-def curseForgeProjectSlug = publishingSecret('CURSEFORGE_PROJECT_SLUG')
+def curseForgeProjectId = providers.environmentVariable('CURSEFORGE_PROJECT_ID')
+    .orElse(providers.gradleProperty('curseforge_project_id'))
+    .orElse(providers.provider { localEnv['CURSEFORGE_PROJECT_ID'] })
+def curseForgeProjectSlug = providers.environmentVariable('CURSEFORGE_PROJECT_SLUG')
+    .orElse(providers.gradleProperty('curseforge_project_slug'))
+    .orElse(providers.provider { localEnv['CURSEFORGE_PROJECT_SLUG'] })
 
 publishMods {
     file = jar.archiveFile
