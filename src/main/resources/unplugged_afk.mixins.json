@@ -2,6 +2,10 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.theonlytazz.unpluggedafk.mixin",
-  "mixins": ["PlayerListMixin"],
+  "mixins": [
+    "EntityAuthorityMixin",
+    "PistonMovingBlockEntityMixin",
+    "PlayerListMixin"
+  ],
   "injectors": {"defaultRequire": 1}
 }
