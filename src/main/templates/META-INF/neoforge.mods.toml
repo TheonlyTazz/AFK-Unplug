@@ -11,6 +11,9 @@ description='''Leave a server-side AFK replacement behind when you disconnect.''
 displayURL="https://github.com/TheonlyTazz/AFK-Unplug"
 logoFile="assets/unplugged_afk/icon.png"
 
+[[mixins]]
+config="unplugged_afk.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"

@@ -24,6 +24,7 @@ public final class OfflinePlayerManager {
     private static final OfflinePlayerManager INSTANCE = new OfflinePlayerManager();
     private final Map<UUID, OfflineSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, OfflinePlayer> players = new ConcurrentHashMap<>();
+    private final Set<String> suppressedJoinNames = ConcurrentHashMap.newKeySet();
     private Path storePath;
 
     private OfflinePlayerManager() {}
@@ -80,7 +81,7 @@ public final class OfflinePlayerManager {
         FakeConnection connection = new FakeConnection();
         OfflinePlayer replacement = new OfflinePlayer(server, level, profile, info);
         CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, info, true);
-        server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
+        placeReplacement(server, connection, replacement, cookie);
         replacement.connection.teleport(x, y, z, yaw, pitch);
         replacement.gameMode.changeGameModeForPlayer(gameMode);
 
@@ -132,7 +133,7 @@ public final class OfflinePlayerManager {
         BlockPos spawn = server.overworld().getSharedSpawnPos();
         replacement.moveTo(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D, 0.0F, 0.0F);
         CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, information, true);
-        server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
+        placeReplacement(server, connection, replacement, cookie);
         if (replacement.blockPosition().equals(BlockPos.ZERO)) {
             replacement.moveTo(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D,
                     replacement.getYRot(), replacement.getXRot());
@@ -174,6 +175,23 @@ public final class OfflinePlayerManager {
 
     public void hideAllFrom(ServerPlayer viewer) {
         for (OfflinePlayer hidden : players.values()) hideFrom(hidden, viewer);
+    }
+
+    private void placeReplacement(MinecraftServer server, FakeConnection connection,
+                                  OfflinePlayer replacement, CommonListenerCookie cookie) {
+        String name = replacement.getGameProfile().getName().toLowerCase(Locale.ROOT);
+        if (ConfigManager.get().messages.hideUnpluggedJoin) suppressedJoinNames.add(name);
+        try {
+            server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
+        } finally {
+            suppressedJoinNames.remove(name);
+        }
+    }
+
+    public boolean shouldSuppressJoin(String message) {
+        if (!ConfigManager.get().messages.hideUnpluggedJoin || suppressedJoinNames.isEmpty()) return false;
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return suppressedJoinNames.stream().anyMatch(normalized::contains);
     }
 
     private void applyVisibility(MinecraftServer server, OfflinePlayer hidden) {
