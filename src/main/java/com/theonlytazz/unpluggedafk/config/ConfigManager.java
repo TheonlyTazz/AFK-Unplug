@@ -8,10 +8,13 @@ import com.theonlytazz.unpluggedafk.UnpluggedAfk;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class ConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -61,6 +64,50 @@ public final class ConfigManager {
             }
         } catch (IOException exception) {
             UnpluggedAfk.LOGGER.error("Could not save {}", path, exception);
+        }
+    }
+
+    public static List<String> optionNames() {
+        List<String> names = new ArrayList<>();
+        for (Field sectionField : UnpluggedConfig.class.getFields()) {
+            try {
+                Object section = sectionField.get(config);
+                if (section == null) continue;
+                for (Field option : section.getClass().getFields()) {
+                    names.add(sectionField.getName() + "." + option.getName());
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    public static synchronized boolean setOption(String path, String rawValue) {
+        int separator = path.indexOf('.');
+        if (separator < 1 || separator == path.length() - 1) return false;
+        try {
+            Field sectionField = UnpluggedConfig.class.getField(path.substring(0, separator));
+            Object section = sectionField.get(config);
+            Field option = section.getClass().getField(path.substring(separator + 1));
+            Object value;
+            if (option.getType() == boolean.class) {
+                if (!rawValue.equalsIgnoreCase("true") && !rawValue.equalsIgnoreCase("false")) return false;
+                value = Boolean.parseBoolean(rawValue);
+            } else if (option.getType() == int.class) {
+                value = Integer.parseInt(rawValue);
+            } else if (option.getType() == long.class) {
+                value = Long.parseLong(rawValue);
+            } else if (option.getType() == String.class) {
+                value = rawValue.replace('&', '§');
+            } else {
+                return false;
+            }
+            option.set(section, value);
+            config.normalize();
+            save();
+            return true;
+        } catch (IllegalAccessException | NoSuchFieldException | NumberFormatException exception) {
+            return false;
         }
     }
 

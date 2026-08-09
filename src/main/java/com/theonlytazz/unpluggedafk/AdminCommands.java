@@ -1,7 +1,6 @@
 package com.theonlytazz.unpluggedafk;
 
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
@@ -9,6 +8,7 @@ import com.theonlytazz.unpluggedafk.player.OfflinePlayerManager;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
@@ -34,12 +34,12 @@ final class AdminCommands {
 
         var settings = Commands.literal("set")
                 .requires(source -> ConfigManager.get().main.advancedAdminOptions)
-                .then(Commands.literal("enabled").then(Commands.argument("value", BoolArgumentType.bool())
-                        .executes(ctx -> setEnabled(ctx.getSource(), BoolArgumentType.getBool(ctx, "value")))))
-                .then(Commands.literal("disableDamage").then(Commands.argument("value", BoolArgumentType.bool())
-                        .executes(ctx -> setDisableDamage(ctx.getSource(), BoolArgumentType.getBool(ctx, "value")))))
-                .then(Commands.literal("defaultTimeout").then(Commands.argument("minutes", IntegerArgumentType.integer(1))
-                        .executes(ctx -> setTimeout(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "minutes")))));
+                .then(Commands.argument("config", StringArgumentType.string())
+                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ConfigManager.optionNames(), builder))
+                        .then(Commands.argument("value", StringArgumentType.greedyString())
+                                .executes(ctx -> setOption(ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "config"),
+                                        StringArgumentType.getString(ctx, "value")))));
 
         dispatcher.register(Commands.literal("unplugged-admin")
                 .requires(source -> hasPermission(source, ConfigManager.get().commands.unpluggedAdminCommandPermissions))
@@ -128,23 +128,11 @@ final class AdminCommands {
                 && levels.level().isEqualOrHigherThan(PermissionLevel.byId(required));
     }
 
-    private static int setEnabled(CommandSourceStack source, boolean value) {
-        ConfigManager.get().main.unpluggedAfkEnabled = value;
-        return saveChanged(source, "enabled", value);
-    }
-
-    private static int setDisableDamage(CommandSourceStack source, boolean value) {
-        ConfigManager.get().unplugged.unpluggedDisableDamage = value;
-        return saveChanged(source, "disableDamage", value);
-    }
-
-    private static int setTimeout(CommandSourceStack source, int value) {
-        ConfigManager.get().unplugged.defaultUnpluggedTimeout = value;
-        return saveChanged(source, "defaultTimeout", value);
-    }
-
-    private static int saveChanged(CommandSourceStack source, String key, Object value) {
-        ConfigManager.save();
+    private static int setOption(CommandSourceStack source, String key, String value) {
+        if (!ConfigManager.setOption(key, value)) {
+            source.sendFailure(Component.literal("Unknown option or invalid value: " + key));
+            return 0;
+        }
         source.sendSuccess(() -> Component.literal("Set " + key + " to " + value), true);
         return 1;
     }

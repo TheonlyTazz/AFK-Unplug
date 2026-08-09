@@ -50,4 +50,18 @@ class ConfigManagerTest {
         assertEquals(0, config.commands.afkCommandPermissions);
         assertEquals(1, config.unplugged.defaultUnpluggedTimeout);
     }
+
+    @Test
+    void advancedOptionSetterSupportsEveryPrimitiveSectionField() {
+        ConfigManager.initialize(directory.resolve("unplugged_afk.json"));
+        assertTrue(ConfigManager.optionNames().contains("messages.whenUnpluggedReturned"));
+        assertTrue(ConfigManager.setOption("main.debugMode", "true"));
+        assertTrue(ConfigManager.setOption("unplugged.defaultUnpluggedTimeout", "15"));
+        assertTrue(ConfigManager.setOption("messages.unpluggedStarted", "&a away"));
+        assertFalse(ConfigManager.setOption("main.debugMode", "perhaps"));
+        assertFalse(ConfigManager.setOption("missing.option", "true"));
+        assertTrue(ConfigManager.get().main.debugMode);
+        assertEquals(15, ConfigManager.get().unplugged.defaultUnpluggedTimeout);
+        assertEquals("§a away", ConfigManager.get().messages.unpluggedStarted);
+    }
 }
