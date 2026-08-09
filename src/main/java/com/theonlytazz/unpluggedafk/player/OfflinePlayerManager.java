@@ -2,10 +2,13 @@ package com.theonlytazz.unpluggedafk.player;
 
 import com.mojang.authlib.GameProfile;
 import com.theonlytazz.unpluggedafk.UnpluggedAfk;
+import com.theonlytazz.unpluggedafk.api.UnpluggedAfkApi;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -34,6 +37,7 @@ public final class OfflinePlayerManager {
     }
 
     public int activeCount() { return players.size(); }
+    public boolean isActive(UUID uuid) { return players.containsKey(uuid); }
 
     public boolean spawn(MinecraftServer server, GameProfile profile, long minutes, String reason) {
         if (profile.getId() == null || players.containsKey(profile.getId()) || server.getPlayerList().getPlayer(profile.getId()) != null) return false;
@@ -82,6 +86,8 @@ public final class OfflinePlayerManager {
         OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
         sessions.put(profile.getId(), session);
         players.put(profile.getId(), replacement);
+        applyVisibility(server, replacement);
+        UnpluggedAfkApi.fireStarted(session);
         saveSessions();
         broadcast(server, Component.literal(profile.getName() + ConfigManager.get().messages.unpluggedStarted));
         UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.getName(), minutes);
@@ -125,6 +131,8 @@ public final class OfflinePlayerManager {
         CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, information, true);
         server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
         players.put(session.uuid(), replacement);
+        applyVisibility(server, replacement);
+        UnpluggedAfkApi.fireStarted(session);
     }
 
     public void terminate(OfflinePlayer player, String reason) {
@@ -141,6 +149,7 @@ public final class OfflinePlayerManager {
         server.getPlayerList().save(player);
         server.getPlayerList().remove(player);
         player.discard();
+        if (old != null) UnpluggedAfkApi.fireEnded(sessions.get(uuid));
         saveSessions();
         return true;
     }
@@ -149,10 +158,28 @@ public final class OfflinePlayerManager {
         if (player instanceof OfflinePlayer) return;
         OfflineSession previous = sessions.remove(player.getUUID());
         players.remove(player.getUUID());
+        hideAllFrom(player);
         if (previous != null && ConfigManager.get().messages.displayReturnFeedback && !previous.reason().isBlank()) {
             player.sendSystemMessage(Component.literal(previous.reason()).withStyle(ChatFormatting.GOLD));
         }
         saveSessions();
+    }
+
+    public void hideAllFrom(ServerPlayer viewer) {
+        for (OfflinePlayer hidden : players.values()) hideFrom(hidden, viewer);
+    }
+
+    private void applyVisibility(MinecraftServer server, OfflinePlayer hidden) {
+        if (!ConfigManager.get().unplugged.unpluggedHidePlayer) return;
+        for (ServerPlayer viewer : server.getPlayerList().getPlayers()) hideFrom(hidden, viewer);
+    }
+
+    private void hideFrom(OfflinePlayer hidden, ServerPlayer viewer) {
+        if (!ConfigManager.get().unplugged.unpluggedHidePlayer || viewer == hidden) return;
+        boolean viewerIsOp = viewer.getServer() != null && viewer.getServer().getPlayerList().isOp(viewer.getGameProfile());
+        if (viewerIsOp && !ConfigManager.get().unplugged.unpluggedHideFromOps) return;
+        viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
+        viewer.connection.send(new ClientboundRemoveEntitiesPacket(hidden.getId()));
     }
 
     public void stop(MinecraftServer server) {
