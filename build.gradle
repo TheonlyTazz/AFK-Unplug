@@ -16,7 +16,13 @@ neoForge {
     version = project.neo_version
     accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
     runs {
-        client { client() }
+        client {
+            client()
+            if (providers.gradleProperty('autoConnect').isPresent()) {
+                programArgument '--quickPlayMultiplayer'
+                programArgument 'localhost:25565'
+            }
+        }
         server {
             server()
             programArgument '--nogui'
