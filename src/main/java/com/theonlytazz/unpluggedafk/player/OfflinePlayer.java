@@ -24,9 +24,9 @@ public final class OfflinePlayer extends ServerPlayer {
     }
 
     @Override
-    public boolean hurt(DamageSource source, float amount) {
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         if (ConfigManager.get().unplugged.unpluggedDisableDamage) return false;
-        return super.hurt(source, amount);
+        return super.hurtServer(level, source, amount);
     }
 
     @Override

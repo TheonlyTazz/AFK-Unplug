@@ -12,6 +12,7 @@ import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.world.level.storage.LevelResource;
 
 import java.nio.file.Path;
@@ -39,13 +40,13 @@ public final class OfflinePlayerManager {
     public int activeCount() { return players.size(); }
     public boolean isActive(UUID uuid) { return players.containsKey(uuid); }
 
-    public boolean spawn(MinecraftServer server, GameProfile profile, long minutes, String reason) {
-        if (profile.getId() == null || players.containsKey(profile.getId()) || server.getPlayerList().getPlayer(profile.getId()) != null) return false;
-        OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
-        sessions.put(profile.getId(), session);
+    public boolean spawn(MinecraftServer server, NameAndId profile, long minutes, String reason) {
+        if (players.containsKey(profile.id()) || server.getPlayerList().getPlayer(profile.id()) != null) return false;
+        OfflineSession session = OfflineSession.active(profile.id(), profile.name(), minutes, reason);
+        sessions.put(profile.id(), session);
         restore(server, session);
-        if (!players.containsKey(profile.getId())) {
-            sessions.remove(profile.getId());
+        if (!players.containsKey(profile.id())) {
+            sessions.remove(profile.id());
             return false;
         }
         saveSessions();
@@ -60,14 +61,14 @@ public final class OfflinePlayerManager {
     }
 
     public boolean unplug(ServerPlayer original, long minutes, String reason) {
-        MinecraftServer server = original.getServer();
+        MinecraftServer server = original.level().getServer();
         if (server == null || original instanceof OfflinePlayer || players.containsKey(original.getUUID())) return false;
         if (!ConfigManager.get().main.unpluggedAfkEnabled) return false;
 
         minutes = minutes > 0 ? minutes : ConfigManager.get().unplugged.defaultUnpluggedTimeout;
         server.getPlayerList().save(original);
         GameProfile profile = original.getGameProfile();
-        var level = original.serverLevel();
+        var level = original.level();
         var info = original.clientInformation();
         double x = original.getX(), y = original.getY(), z = original.getZ();
         float yaw = original.getYRot(), pitch = original.getXRot();
@@ -83,14 +84,14 @@ public final class OfflinePlayerManager {
         replacement.connection.teleport(x, y, z, yaw, pitch);
         replacement.gameMode.changeGameModeForPlayer(gameMode);
 
-        OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
-        sessions.put(profile.getId(), session);
-        players.put(profile.getId(), replacement);
+        OfflineSession session = OfflineSession.active(profile.id(), profile.name(), minutes, reason);
+        sessions.put(profile.id(), session);
+        players.put(profile.id(), replacement);
         applyVisibility(server, replacement);
         UnpluggedAfkApi.fireStarted(session);
         saveSessions();
-        broadcast(server, Component.literal(profile.getName() + ConfigManager.get().messages.unpluggedStarted));
-        UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.getName(), minutes);
+        broadcast(server, Component.literal(profile.name() + ConfigManager.get().messages.unpluggedStarted));
+        UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.name(), minutes);
         return true;
     }
 
@@ -123,7 +124,7 @@ public final class OfflinePlayerManager {
 
     private void restore(MinecraftServer server, OfflineSession session) {
         if (server.getPlayerList().getPlayer(session.uuid()) != null) return;
-        GameProfile profile = server.getProfileCache().get(session.uuid())
+        GameProfile profile = server.services().profileResolver().fetchById(session.uuid())
                 .orElseGet(() -> new GameProfile(session.uuid(), session.name()));
         var information = net.minecraft.server.level.ClientInformation.createDefault();
         FakeConnection connection = new FakeConnection();
@@ -136,7 +137,7 @@ public final class OfflinePlayerManager {
     }
 
     public void terminate(OfflinePlayer player, String reason) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server != null) remove(server, player.getUUID(), UnpluggedStatus.TERMINATED, reason);
     }
 
@@ -176,7 +177,8 @@ public final class OfflinePlayerManager {
 
     private void hideFrom(OfflinePlayer hidden, ServerPlayer viewer) {
         if (!ConfigManager.get().unplugged.unpluggedHidePlayer || viewer == hidden) return;
-        boolean viewerIsOp = viewer.getServer() != null && viewer.getServer().getPlayerList().isOp(viewer.getGameProfile());
+        MinecraftServer viewerServer = viewer.level().getServer();
+        boolean viewerIsOp = viewerServer != null && viewerServer.getPlayerList().isOp(viewer.nameAndId());
         if (viewerIsOp && !ConfigManager.get().unplugged.unpluggedHideFromOps) return;
         viewer.connection.send(new ClientboundPlayerInfoRemovePacket(List.of(hidden.getUUID())));
         viewer.connection.send(new ClientboundRemoveEntitiesPacket(hidden.getId()));

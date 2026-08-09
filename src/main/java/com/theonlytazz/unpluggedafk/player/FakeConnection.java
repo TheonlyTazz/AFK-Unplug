@@ -2,10 +2,9 @@ package com.theonlytazz.unpluggedafk.player;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.network.Connection;
-import net.minecraft.network.PacketSendListener;
+import io.netty.channel.ChannelFutureListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
-import org.jetbrains.annotations.Nullable;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -19,8 +18,8 @@ final class FakeConnection extends Connection {
     }
 
     @Override
-    public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
-        if (listener != null) listener.onSuccess();
+    public void send(Packet<?> packet, ChannelFutureListener listener, boolean flush) {
+        if (listener != null) channel.newSucceededFuture().addListener(listener);
     }
 
     @Override public void setReadOnly() {}

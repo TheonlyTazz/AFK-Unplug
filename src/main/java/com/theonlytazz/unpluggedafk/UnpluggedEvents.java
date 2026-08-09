@@ -8,6 +8,8 @@ import com.theonlytazz.unpluggedafk.player.OfflinePlayerManager;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -20,7 +22,8 @@ final class UnpluggedEvents {
     @SubscribeEvent
     public void registerCommands(RegisterCommandsEvent event) {
         var root = Commands.literal("unplug")
-                .requires(source -> source.hasPermission(ConfigManager.get().commands.unplugCommandPermissions))
+                .requires(source -> source.permissions() instanceof LevelBasedPermissionSet levels
+                        && levels.level().isEqualOrHigherThan(PermissionLevel.byId(ConfigManager.get().commands.unplugCommandPermissions)))
                 .executes(ctx -> unplug(ctx.getSource().getPlayerOrException(),
                         ConfigManager.get().unplugged.defaultUnpluggedTimeout, ""))
                 .then(Commands.argument("minutes", IntegerArgumentType.integer(1))
@@ -34,7 +37,8 @@ final class UnpluggedEvents {
     }
 
     private static int unplug(ServerPlayer player, long minutes, String reason) {
-        if (player.getServer() != null && player.getServer().isSingleplayerOwner(player.getGameProfile())) {
+        var server = player.level().getServer();
+        if (server != null && server.isSingleplayerOwner(player.nameAndId())) {
             player.sendSystemMessage(Component.literal("The integrated-server owner cannot unplug."));
             return 0;
         }

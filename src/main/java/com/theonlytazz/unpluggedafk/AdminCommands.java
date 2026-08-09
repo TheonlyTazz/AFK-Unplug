@@ -1,6 +1,5 @@
 package com.theonlytazz.unpluggedafk;
 
-import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -12,6 +11,9 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.players.NameAndId;
 
 import java.util.Collection;
 
@@ -40,7 +42,7 @@ final class AdminCommands {
                         .executes(ctx -> setTimeout(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "minutes")))));
 
         dispatcher.register(Commands.literal("unplugged-admin")
-                .requires(source -> source.hasPermission(ConfigManager.get().commands.unpluggedAdminCommandPermissions))
+                .requires(source -> hasPermission(source, ConfigManager.get().commands.unpluggedAdminCommandPermissions))
                 .executes(ctx -> info(ctx.getSource()))
                 .then(Commands.literal("info").executes(ctx -> info(ctx.getSource()))
                         .then(Commands.argument("player", GameProfileArgument.gameProfile())
@@ -63,10 +65,10 @@ final class AdminCommands {
         return 1;
     }
 
-    private static int playerInfo(CommandSourceStack source, Collection<GameProfile> profiles) {
-        for (GameProfile profile : profiles) {
-            source.sendSuccess(() -> Component.literal(profile.getName() + ": "
-                    + OfflinePlayerManager.get().session(profile.getId()).map(Object::toString).orElse("not tracked")), false);
+    private static int playerInfo(CommandSourceStack source, Collection<NameAndId> profiles) {
+        for (NameAndId profile : profiles) {
+            source.sendSuccess(() -> Component.literal(profile.name() + ": "
+                    + OfflinePlayerManager.get().session(profile.id()).map(Object::toString).orElse("not tracked")), false);
         }
         return profiles.size();
     }
@@ -98,10 +100,10 @@ final class AdminCommands {
         return removed;
     }
 
-    private static int kick(CommandSourceStack source, Collection<GameProfile> profiles) {
+    private static int kick(CommandSourceStack source, Collection<NameAndId> profiles) {
         int removed = 0;
-        for (GameProfile profile : profiles) {
-            if (OfflinePlayerManager.get().remove(source.getServer(), profile.getId(), UnpluggedStatus.TERMINATED,
+        for (NameAndId profile : profiles) {
+            if (OfflinePlayerManager.get().remove(source.getServer(), profile.id(), UnpluggedStatus.TERMINATED,
                     ConfigManager.get().messages.unpluggedTerminated)) removed++;
         }
         int count = removed;
@@ -109,16 +111,21 @@ final class AdminCommands {
         return removed;
     }
 
-    private static int spawn(CommandSourceStack source, Collection<GameProfile> profiles, long minutes, String reason) {
+    private static int spawn(CommandSourceStack source, Collection<NameAndId> profiles, long minutes, String reason) {
         int spawned = 0;
-        for (GameProfile profile : profiles) {
-            var online = source.getServer().getPlayerList().getPlayer(profile.getId());
+        for (NameAndId profile : profiles) {
+            var online = source.getServer().getPlayerList().getPlayer(profile.id());
             boolean result = online != null
                     ? OfflinePlayerManager.get().unplug(online, minutes, reason)
                     : OfflinePlayerManager.get().spawn(source.getServer(), profile, minutes, reason);
             if (result) spawned++;
         }
         return spawned;
+    }
+
+    private static boolean hasPermission(CommandSourceStack source, int required) {
+        return source.permissions() instanceof LevelBasedPermissionSet levels
+                && levels.level().isEqualOrHigherThan(PermissionLevel.byId(required));
     }
 
     private static int setEnabled(CommandSourceStack source, boolean value) {
