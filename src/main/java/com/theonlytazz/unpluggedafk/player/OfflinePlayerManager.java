@@ -9,7 +9,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.level.storage.LevelResource;
 
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,6 +20,7 @@ public final class OfflinePlayerManager {
     private static final OfflinePlayerManager INSTANCE = new OfflinePlayerManager();
     private final Map<UUID, OfflineSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, OfflinePlayer> players = new ConcurrentHashMap<>();
+    private Path storePath;
 
     private OfflinePlayerManager() {}
     public static OfflinePlayerManager get() { return INSTANCE; }
@@ -28,6 +31,28 @@ public final class OfflinePlayerManager {
 
     public Optional<OfflineSession> session(UUID uuid) {
         return Optional.ofNullable(sessions.get(uuid));
+    }
+
+    public int activeCount() { return players.size(); }
+
+    public boolean spawn(MinecraftServer server, GameProfile profile, long minutes, String reason) {
+        if (profile.getId() == null || players.containsKey(profile.getId()) || server.getPlayerList().getPlayer(profile.getId()) != null) return false;
+        OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
+        sessions.put(profile.getId(), session);
+        restore(server, session);
+        if (!players.containsKey(profile.getId())) {
+            sessions.remove(profile.getId());
+            return false;
+        }
+        saveSessions();
+        return true;
+    }
+
+    public int purgeEnded() {
+        int before = sessions.size();
+        sessions.entrySet().removeIf(entry -> entry.getValue().status() != UnpluggedStatus.ACTIVE);
+        saveSessions();
+        return before - sessions.size();
     }
 
     public boolean unplug(ServerPlayer original, long minutes, String reason) {
@@ -57,6 +82,7 @@ public final class OfflinePlayerManager {
         OfflineSession session = OfflineSession.active(profile.getId(), profile.getName(), minutes, reason);
         sessions.put(profile.getId(), session);
         players.put(profile.getId(), replacement);
+        saveSessions();
         broadcast(server, Component.literal(profile.getName() + ConfigManager.get().messages.unpluggedStarted));
         UnpluggedAfk.LOGGER.info("{} is now represented by an offline player for {} minute(s)", profile.getName(), minutes);
         return true;
@@ -68,6 +94,37 @@ public final class OfflinePlayerManager {
             if (session.expired(now)) remove(server, session.uuid(), UnpluggedStatus.EXPIRED,
                     ConfigManager.get().messages.unpluggedExpiredReason);
         }
+    }
+
+    public void start(MinecraftServer server) {
+        players.clear();
+        sessions.clear();
+        storePath = server.getWorldPath(LevelResource.ROOT).resolve("unplugged_afk_sessions.json");
+        for (OfflineSession session : SessionStore.load(storePath)) sessions.put(session.uuid(), session);
+
+        for (OfflineSession session : List.copyOf(sessions.values())) {
+            if (session.status() != UnpluggedStatus.ACTIVE) continue;
+            if (session.expired(Instant.now())) {
+                sessions.put(session.uuid(), session.ended(UnpluggedStatus.EXPIRED,
+                        ConfigManager.get().messages.unpluggedExpiredReason));
+                continue;
+            }
+            restore(server, session);
+        }
+        saveSessions();
+        UnpluggedAfk.LOGGER.info("Restored {} offline player(s)", players.size());
+    }
+
+    private void restore(MinecraftServer server, OfflineSession session) {
+        if (server.getPlayerList().getPlayer(session.uuid()) != null) return;
+        GameProfile profile = server.getProfileCache().get(session.uuid())
+                .orElseGet(() -> new GameProfile(session.uuid(), session.name()));
+        var information = net.minecraft.server.level.ClientInformation.createDefault();
+        FakeConnection connection = new FakeConnection();
+        OfflinePlayer replacement = new OfflinePlayer(server, server.overworld(), profile, information);
+        CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, information, true);
+        server.getPlayerList().placeNewPlayer(connection, replacement, cookie);
+        players.put(session.uuid(), replacement);
     }
 
     public void terminate(OfflinePlayer player, String reason) {
@@ -84,6 +141,7 @@ public final class OfflinePlayerManager {
         server.getPlayerList().save(player);
         server.getPlayerList().remove(player);
         player.discard();
+        saveSessions();
         return true;
     }
 
@@ -94,11 +152,17 @@ public final class OfflinePlayerManager {
         if (previous != null && ConfigManager.get().messages.displayReturnFeedback && !previous.reason().isBlank()) {
             player.sendSystemMessage(Component.literal(previous.reason()).withStyle(ChatFormatting.GOLD));
         }
+        saveSessions();
     }
 
     public void stop(MinecraftServer server) {
         for (OfflinePlayer player : List.copyOf(players.values())) server.getPlayerList().save(player);
+        saveSessions();
         players.clear();
+    }
+
+    public void saveSessions() {
+        if (storePath != null) SessionStore.save(storePath, sessions.values());
     }
 
     private static void broadcast(MinecraftServer server, Component message) {

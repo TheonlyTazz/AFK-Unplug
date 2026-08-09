@@ -12,6 +12,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 final class UnpluggedEvents {
@@ -28,6 +30,7 @@ final class UnpluggedEvents {
                                         IntegerArgumentType.getInteger(ctx, "minutes"), StringArgumentType.getString(ctx, "reason")))));
         if (ConfigManager.get().commands.enableUnplugCommand) event.getDispatcher().register(root);
         if (ConfigManager.get().commands.enableAfkCommand) event.getDispatcher().register(Commands.literal("afk").redirect(root.build()));
+        AdminCommands.register(event.getDispatcher());
     }
 
     private static int unplug(ServerPlayer player, long minutes, String reason) {
@@ -44,6 +47,11 @@ final class UnpluggedEvents {
     }
 
     @SubscribeEvent
+    public void serverStarted(ServerStartedEvent event) {
+        OfflinePlayerManager.get().start(event.getServer());
+    }
+
+    @SubscribeEvent
     public void playerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && !(player instanceof OfflinePlayer)) {
             OfflinePlayerManager.get().onRealPlayerJoined(player);
@@ -51,7 +59,7 @@ final class UnpluggedEvents {
     }
 
     @SubscribeEvent
-    public void serverStopped(ServerStoppedEvent event) {
+    public void serverStopping(ServerStoppingEvent event) {
         OfflinePlayerManager.get().stop(event.getServer());
     }
 }
