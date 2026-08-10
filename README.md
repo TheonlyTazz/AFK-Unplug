@@ -40,11 +40,13 @@ session state is stored in `<world>/unplugged_afk_sessions.json`; normal
 Minecraft playerdata remains authoritative for inventory, effects, position,
 dimension, game mode and other entity state.
 
-Offline replacements show `PlayerName [AFK]` above their head and in the TAB
+Offline replacements show `PlayerName [UNPLUGGED]` above their head and in the TAB
 list by default. Set `unplugged.showAfkNameplate` or
 `unplugged.showAfkInTabList` to `false` to disable either indicator, and change
 the `label.unplugged_afk.afk` entry through a resource pack to customize the
-label. The existing `unplugged.unpluggedHidePlayer` option still takes
+label. This deliberately distinguishes a disconnected representative from an
+ordinary, still-connected AFK player. The existing
+`unplugged.unpluggedHidePlayer` option still takes
 precedence and hides both.
 
 All player-facing text uses translation keys from
