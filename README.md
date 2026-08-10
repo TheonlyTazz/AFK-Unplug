@@ -59,8 +59,10 @@ sessions are discarded during server shutdown. `/unplug next` is one-shot;
 `/unplug auto on` preferences persist in the server config.
 
 When FTB Ranks is installed, the optional integration recognizes
-`unplugged_afk.use`, `unplugged_afk.admin`, `unplugged_afk.auto`, `unplugged_afk.bypass_limits`, and
-the numeric `unplugged_afk.duration.max` node. Explicit FTB Ranks values take
+`unplugged_afk.use`, `unplugged_afk.admin`, `unplugged_afk.auto`,
+`unplugged_afk.bypass_duration_limit`, `unplugged_afk.bypass_session_limit`,
+and the numeric `unplugged_afk.duration.max` node. The legacy combined
+`unplugged_afk.bypass_limits` node remains supported. Explicit FTB Ranks values take
 priority over the access list; the mod has no required FTB dependency.
 
 Offline replacements show `PlayerName [UNPLUGGED]` above their head and in the TAB
