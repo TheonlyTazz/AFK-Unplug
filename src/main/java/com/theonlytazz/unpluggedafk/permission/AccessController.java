@@ -48,13 +48,13 @@ public final class AccessController {
     private static boolean matches(ServerPlayer player, String entry) {
         String value = entry == null ? "" : entry.trim();
         return value.equalsIgnoreCase(player.getUUID().toString())
-                || value.toLowerCase(Locale.ROOT).equals(player.nameAndId().name().toLowerCase(Locale.ROOT));
+                || value.toLowerCase(Locale.ROOT).equals(player.getGameProfile().getName().toLowerCase(Locale.ROOT));
     }
 
     private static boolean isOperatorBypass(ServerPlayer player) {
         return ConfigManager.get().access.operatorsBypass
                 && player.level().getServer() != null
-                && player.level().getServer().getPlayerList().isOp(player.nameAndId());
+                && player.level().getServer().getPlayerList().isOp(player.getGameProfile());
     }
 
     private static Optional<Boolean> ftbBoolean(ServerPlayer player, String node) {

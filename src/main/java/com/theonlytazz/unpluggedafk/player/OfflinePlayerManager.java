@@ -56,7 +56,7 @@ public final class OfflinePlayerManager {
         if (session == null) return Optional.empty();
         OfflinePlayer player = players.get(uuid);
         String location = player == null ? "-" : String.format(Locale.ROOT, "%s @ %.1f, %.1f, %.1f",
-                player.level().dimension().identifier(), player.getX(), player.getY(), player.getZ());
+                player.level().dimension().location(), player.getX(), player.getY(), player.getZ());
         long remainingSeconds = session.remaining(Instant.now()).toSeconds();
         return Optional.of(Translations.component("command.unplugged_afk.admin.player_details",
                 session.status(), remainingSeconds, location,
@@ -271,7 +271,7 @@ public final class OfflinePlayerManager {
         if (minutes == null || automatic.mode.equals("DISABLED") || !AccessController.mayAutoUnplug(player)) return;
         minutes = Math.min(minutes, AccessController.maximumDuration(player));
         player.level().getServer().getPlayerList().save(player);
-        pendingAutomatic.put(uuid, new PendingAutomatic(player.nameAndId(), minutes,
+        pendingAutomatic.put(uuid, new PendingAutomatic(player.getGameProfile(), minutes,
                 automatic.delaySeconds * 20));
     }
 
@@ -428,7 +428,7 @@ public final class OfflinePlayerManager {
                         .withStyle(ChatFormatting.YELLOW), false);
     }
 
-    private record PendingAutomatic(NameAndId profile, long minutes, int ticksRemaining) {
+    private record PendingAutomatic(GameProfile profile, long minutes, int ticksRemaining) {
         PendingAutomatic tick() { return new PendingAutomatic(profile, minutes, ticksRemaining - 1); }
     }
 }
