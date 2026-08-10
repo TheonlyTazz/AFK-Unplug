@@ -35,7 +35,11 @@ public final class OfflinePlayerManager {
     private final Map<UUID, Integer> pendingPlayerInfoRefreshes = new ConcurrentHashMap<>();
     private final Set<String> suppressedJoinNames = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> pendingStatusSuppressions = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> nextLogouts = new ConcurrentHashMap<>();
+    private final Map<UUID, PendingAutomatic> pendingAutomatic = new ConcurrentHashMap<>();
+    private final Set<UUID> manualDisconnects = ConcurrentHashMap.newKeySet();
     private Path storePath;
+    private boolean stopping;
 
     private OfflinePlayerManager() {}
     public static OfflinePlayerManager get() { return INSTANCE; }
@@ -62,6 +66,7 @@ public final class OfflinePlayerManager {
             return false;
         }
         saveSessions();
+        broadcast(server, SessionMessages.started(session, ConfigManager.get().messages));
         return true;
     }
 
@@ -95,6 +100,7 @@ public final class OfflinePlayerManager {
         var gameMode = original.gameMode.getGameModeForPlayer();
 
         suppressedJoinNames.add(profile.name().toLowerCase(Locale.ROOT));
+        manualDisconnects.add(profile.id());
         server.getPlayerList().remove(original);
         original.connection.disconnect(Translations.component("disconnect.unplugged_afk.unplugged"));
 
@@ -120,6 +126,18 @@ public final class OfflinePlayerManager {
     }
 
     public void tick(MinecraftServer server) {
+        for (var entry : List.copyOf(pendingAutomatic.entrySet())) {
+            PendingAutomatic pending = entry.getValue();
+            if (pending.ticksRemaining() > 0) {
+                pendingAutomatic.put(entry.getKey(), pending.tick());
+            } else {
+                pendingAutomatic.remove(entry.getKey());
+                if (!stopping && server.getPlayerList().getPlayer(entry.getKey()) == null
+                        && players.size() < ConfigManager.get().unplugged.maximumSimultaneousPlayers) {
+                    spawn(server, pending.profile(), pending.minutes(), "message.unplugged_afk.reason.automatic");
+                }
+            }
+        }
         for (var entry : List.copyOf(pendingStatusSuppressions.entrySet())) {
             if (entry.getValue() > 1) {
                 pendingStatusSuppressions.put(entry.getKey(), entry.getValue() - 1);
@@ -147,10 +165,14 @@ public final class OfflinePlayerManager {
     }
 
     public void start(MinecraftServer server) {
+        stopping = false;
         players.clear();
         pendingPlayerInfoRefreshes.clear();
         suppressedJoinNames.clear();
         pendingStatusSuppressions.clear();
+        nextLogouts.clear();
+        pendingAutomatic.clear();
+        manualDisconnects.clear();
         sessions.clear();
         storePath = server.getWorldPath(LevelResource.ROOT).resolve("unplugged_afk_sessions.json");
         for (OfflineSession session : SessionStore.load(storePath)) sessions.put(session.uuid(), session);
@@ -217,6 +239,8 @@ public final class OfflinePlayerManager {
 
     public void onRealPlayerJoined(ServerPlayer player) {
         if (player instanceof OfflinePlayer) return;
+        manualDisconnects.remove(player.getUUID());
+        pendingAutomatic.remove(player.getUUID());
         OfflineSession previous = sessions.remove(player.getUUID());
         players.remove(player.getUUID());
         hideAllFrom(player);
@@ -224,6 +248,52 @@ public final class OfflinePlayerManager {
             player.sendSystemMessage(SessionMessages.feedback(previous, Instant.now(), ConfigManager.get().messages));
         }
         saveSessions();
+    }
+
+    public void onRealPlayerLoggedOut(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        if (stopping || manualDisconnects.remove(uuid)) return;
+        var automatic = ConfigManager.get().automatic;
+        Long minutes = nextLogouts.remove(uuid);
+        if (minutes == null) minutes = automatic.players.get(uuid.toString());
+        if (minutes == null && automatic.mode.equals("EVERYONE")) minutes = automatic.defaultDurationMinutes;
+        if (minutes == null || automatic.mode.equals("DISABLED") || !AccessController.mayAutoUnplug(player)) return;
+        minutes = Math.min(minutes, AccessController.maximumDuration(player));
+        player.level().getServer().getPlayerList().save(player);
+        pendingAutomatic.put(uuid, new PendingAutomatic(player.nameAndId(), minutes,
+                automatic.delaySeconds * 20));
+    }
+
+    public void setAutomatic(ServerPlayer player, long minutes) {
+        ConfigManager.get().automatic.players.put(player.getUUID().toString(), minutes);
+        ConfigManager.save();
+    }
+
+    public void disableAutomatic(UUID uuid) {
+        ConfigManager.get().automatic.players.remove(uuid.toString());
+        nextLogouts.remove(uuid);
+        pendingAutomatic.remove(uuid);
+        ConfigManager.save();
+    }
+
+    public void armNextLogout(ServerPlayer player, long minutes) {
+        nextLogouts.put(player.getUUID(), minutes);
+    }
+
+    public boolean cancelAutomatic(UUID uuid) {
+        boolean changed = nextLogouts.remove(uuid) != null;
+        changed |= pendingAutomatic.remove(uuid) != null;
+        return changed;
+    }
+
+    public Component automaticStatus(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        if (nextLogouts.containsKey(uuid)) {
+            return Translations.component("command.unplugged_afk.status.next", nextLogouts.get(uuid));
+        }
+        Long duration = ConfigManager.get().automatic.players.get(uuid.toString());
+        if (duration != null) return Translations.component("command.unplugged_afk.status.auto", duration);
+        return Translations.component("command.unplugged_afk.status.off");
     }
 
     public void prepareRealLogin(UUID uuid) {
@@ -318,6 +388,8 @@ public final class OfflinePlayerManager {
     }
 
     public void stop(MinecraftServer server) {
+        stopping = true;
+        pendingAutomatic.clear();
         for (OfflinePlayer player : List.copyOf(players.values())) {
             server.getPlayerList().save(player);
         }
@@ -343,5 +415,9 @@ public final class OfflinePlayerManager {
         server.getPlayerList().broadcastSystemMessage(
                 Component.translatable("multiplayer.player.left", player.getDisplayName())
                         .withStyle(ChatFormatting.YELLOW), false);
+    }
+
+    private record PendingAutomatic(NameAndId profile, long minutes, int ticksRemaining) {
+        PendingAutomatic tick() { return new PendingAutomatic(profile, minutes, ticksRemaining - 1); }
     }
 }

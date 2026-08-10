@@ -61,6 +61,9 @@ class ConfigManagerTest {
         config.unplugged.maximumUnpluggedTimeout = 0;
         config.unplugged.maximumSimultaneousPlayers = 0;
         config.access.mode = "invalid";
+        config.automatic.mode = "invalid";
+        config.automatic.defaultDurationMinutes = 0;
+        config.automatic.delaySeconds = 999;
         config.normalize();
 
         assertEquals(4, config.commands.unplugCommandPermissions);
@@ -69,6 +72,9 @@ class ConfigManagerTest {
         assertEquals(1, config.unplugged.maximumUnpluggedTimeout);
         assertEquals(1, config.unplugged.maximumSimultaneousPlayers);
         assertEquals("EVERYONE", config.access.mode);
+        assertEquals("OPT_IN", config.automatic.mode);
+        assertEquals(1, config.automatic.defaultDurationMinutes);
+        assertEquals(60, config.automatic.delaySeconds);
     }
 
     @Test

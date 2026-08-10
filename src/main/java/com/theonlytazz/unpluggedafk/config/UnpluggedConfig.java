@@ -3,12 +3,15 @@ package com.theonlytazz.unpluggedafk.config;
 import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public final class UnpluggedConfig {
     public Main main = new Main();
     public Commands commands = new Commands();
     public OfflinePlayers unplugged = new OfflinePlayers();
     public Access access = new Access();
+    public Automatic automatic = new Automatic();
     public Messages messages = new Messages();
 
     public void normalize() {
@@ -16,6 +19,7 @@ public final class UnpluggedConfig {
         commands = Objects.requireNonNullElseGet(commands, Commands::new);
         unplugged = Objects.requireNonNullElseGet(unplugged, OfflinePlayers::new);
         access = Objects.requireNonNullElseGet(access, Access::new);
+        automatic = Objects.requireNonNullElseGet(automatic, Automatic::new);
         messages = Objects.requireNonNullElseGet(messages, Messages::new);
         commands.unplugCommandPermissions = clampPermission(commands.unplugCommandPermissions);
         commands.unpluggedAdminCommandPermissions = clampPermission(commands.unpluggedAdminCommandPermissions);
@@ -28,6 +32,13 @@ public final class UnpluggedConfig {
             access.mode = "EVERYONE";
         }
         access.players = Objects.requireNonNullElseGet(access.players, ArrayList::new);
+        automatic.mode = Objects.requireNonNullElse(automatic.mode, "OPT_IN").toUpperCase();
+        if (!automatic.mode.equals("DISABLED") && !automatic.mode.equals("OPT_IN")
+                && !automatic.mode.equals("EVERYONE")) automatic.mode = "OPT_IN";
+        automatic.defaultDurationMinutes = Math.max(1, automatic.defaultDurationMinutes);
+        automatic.delaySeconds = Math.max(0, Math.min(60, automatic.delaySeconds));
+        automatic.players = Objects.requireNonNullElseGet(automatic.players, HashMap::new);
+        automatic.players.replaceAll((uuid, minutes) -> Math.max(1L, minutes == null ? 1L : minutes));
     }
 
     private static int clampPermission(int value) {
@@ -66,6 +77,13 @@ public final class UnpluggedConfig {
         public List<String> players = new ArrayList<>();
         public boolean operatorsBypass = true;
         public boolean useFtbRanks = true;
+    }
+
+    public static final class Automatic {
+        public String mode = "OPT_IN";
+        public long defaultDurationMinutes = 60;
+        public int delaySeconds = 5;
+        public Map<String, Long> players = new HashMap<>();
     }
 
     public static final class Messages {

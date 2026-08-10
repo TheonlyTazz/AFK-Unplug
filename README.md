@@ -26,6 +26,11 @@ versions are not binary-compatible.
 - `/unplug [minutes] [reason]` leaves an offline replacement and disconnects
   the caller. The integrated-server owner cannot use it.
 - `/afk` is an optional alias, disabled by default.
+- `/unplug status` shows the caller's automatic-unplug preference.
+- `/unplug next [minutes]` arms only the caller's next logout.
+- `/unplug auto on [minutes]` enables persistent opt-in automatic unplug;
+  `/unplug auto off` disables it.
+- `/unplug cancel` cancels an armed or delayed automatic transition.
 - `/unplugged-admin info [player]`
 - `/unplugged-admin list`
 - `/unplugged-admin save|reload|purge`
@@ -46,6 +51,12 @@ but UUIDs are recommended. Operators bypass access and duration limits by
 default. `unplugged.maximumUnpluggedTimeout` caps a normal player's requested
 duration, and `unplugged.maximumSimultaneousPlayers` protects the server from
 too many representatives.
+
+Automatic logout behavior is controlled by `automatic.mode`: `DISABLED`,
+`OPT_IN` (the default), or `EVERYONE`. A normal logout is converted only after
+`automatic.delaySeconds`, so a quick reconnect cancels it. Pending automatic
+sessions are discarded during server shutdown. `/unplug next` is one-shot;
+`/unplug auto on` preferences persist in the server config.
 
 When FTB Ranks is installed, the optional integration recognizes
 `unplugged_afk.use`, `unplugged_afk.auto`, `unplugged_afk.bypass_limits`, and
