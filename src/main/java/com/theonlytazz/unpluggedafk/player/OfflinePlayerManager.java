@@ -17,7 +17,10 @@ import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
@@ -146,7 +149,7 @@ public final class OfflinePlayerManager {
                 if (!stopping && server.getPlayerList().getPlayer(entry.getKey()) == null
                         && (pending.bypassSessionLimit()
                         || players.size() < ConfigManager.get().unplugged.maximumSimultaneousPlayers)) {
-                    spawn(server, pending.profile(), pending.minutes(), "message.unplugged_afk.reason.automatic");
+                    spawnAutomatic(server, pending);
                 }
             }
         }
@@ -272,7 +275,9 @@ public final class OfflinePlayerManager {
         if (minutes == null || automatic.mode.equals("DISABLED") || !AccessController.mayAutoUnplug(player)) return;
         minutes = Math.min(minutes, AccessController.maximumDuration(player));
         player.level().getServer().getPlayerList().save(player);
-        pendingAutomatic.put(uuid, new PendingAutomatic(player.getGameProfile(), minutes,
+        pendingAutomatic.put(uuid, new PendingAutomatic(player.getGameProfile(), player.serverLevel(),
+                player.clientInformation(), player.getX(), player.getY(), player.getZ(),
+                player.getYRot(), player.getXRot(), player.gameMode.getGameModeForPlayer(), minutes,
                 automatic.delaySeconds * 20, AccessController.bypassesSessionLimit(player)));
     }
 
@@ -429,10 +434,36 @@ public final class OfflinePlayerManager {
                         .withStyle(ChatFormatting.YELLOW), false);
     }
 
-    private record PendingAutomatic(GameProfile profile, long minutes, int ticksRemaining,
-                                    boolean bypassSessionLimit) {
+    private void spawnAutomatic(MinecraftServer server, PendingAutomatic pending) {
+        UUID uuid = pending.profile().getId();
+        if (players.containsKey(uuid) || server.getPlayerList().getPlayer(uuid) != null) return;
+
+        FakeConnection connection = new FakeConnection();
+        OfflinePlayer replacement = new OfflinePlayer(server, pending.level(), pending.profile(), pending.information());
+        CommonListenerCookie cookie = new CommonListenerCookie(pending.profile(), 0, pending.information(), true);
+        placeReplacement(server, connection, replacement, cookie);
+        replacement.connection.teleport(pending.x(), pending.y(), pending.z(), pending.yaw(), pending.pitch());
+        replacement.gameMode.changeGameModeForPlayer(pending.gameMode());
+
+        OfflineSession session = OfflineSession.active(uuid, pending.profile().getName(), pending.minutes(),
+                "message.unplugged_afk.reason.automatic");
+        sessions.put(uuid, session);
+        players.put(uuid, replacement);
+        applyPresentation(server, replacement);
+        pendingPlayerInfoRefreshes.put(uuid, 2);
+        UnpluggedAfkApi.fireStarted(session);
+        saveSessions();
+        broadcast(server, SessionMessages.started(session, ConfigManager.get().messages));
+        UnpluggedAfk.LOGGER.info("{} is now represented by an automatic offline player for {} minute(s) at {}, {}, {}",
+                pending.profile().getName(), pending.minutes(), pending.x(), pending.y(), pending.z());
+    }
+
+    private record PendingAutomatic(GameProfile profile, ServerLevel level, ClientInformation information,
+                                    double x, double y, double z, float yaw, float pitch, GameType gameMode,
+                                    long minutes, int ticksRemaining, boolean bypassSessionLimit) {
         PendingAutomatic tick() {
-            return new PendingAutomatic(profile, minutes, ticksRemaining - 1, bypassSessionLimit);
+            return new PendingAutomatic(profile, level, information, x, y, z, yaw, pitch, gameMode,
+                    minutes, ticksRemaining - 1, bypassSessionLimit);
         }
     }
 }
