@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public final class AccessController {
     public static final String USE = "unplugged_afk.use";
+    public static final String ADMIN = "unplugged_afk.admin";
     public static final String MAX_DURATION = "unplugged_afk.duration.max";
     public static final String AUTO = "unplugged_afk.auto";
     public static final String BYPASS_LIMITS = "unplugged_afk.bypass_limits";
@@ -28,6 +29,17 @@ public final class AccessController {
             case "DENYLIST" -> !listed;
             default -> true;
         };
+    }
+
+    public static boolean hasUseGrant(ServerPlayer player) {
+        Optional<Boolean> rankValue = ftbBoolean(player, USE);
+        if (rankValue.isPresent()) return rankValue.get();
+        return ConfigManager.get().access.mode.equals("ALLOWLIST")
+                && ConfigManager.get().access.players.stream().anyMatch(entry -> matches(player, entry));
+    }
+
+    public static boolean mayAdmin(ServerPlayer player) {
+        return isOperatorBypass(player) || ftbBoolean(player, ADMIN).orElse(false);
     }
 
     public static boolean mayAutoUnplug(ServerPlayer player) {
