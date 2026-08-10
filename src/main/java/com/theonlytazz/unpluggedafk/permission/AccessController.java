@@ -13,6 +13,10 @@ public final class AccessController {
     public static final String ADMIN = "unplugged_afk.admin";
     public static final String MAX_DURATION = "unplugged_afk.duration.max";
     public static final String AUTO = "unplugged_afk.auto";
+    public static final String BYPASS_DURATION_LIMIT = "unplugged_afk.bypass_duration_limit";
+    public static final String BYPASS_SESSION_LIMIT = "unplugged_afk.bypass_session_limit";
+    /** @deprecated use the specific duration or session limit node. */
+    @Deprecated
     public static final String BYPASS_LIMITS = "unplugged_afk.bypass_limits";
 
     private AccessController() {}
@@ -47,13 +51,27 @@ public final class AccessController {
         return isOperatorBypass(player) || ftbBoolean(player, AUTO).orElse(true);
     }
 
+    public static boolean bypassesDurationLimit(ServerPlayer player) {
+        return isOperatorBypass(player)
+                || ftbBoolean(player, BYPASS_DURATION_LIMIT).orElse(false)
+                || ftbBoolean(player, BYPASS_LIMITS).orElse(false);
+    }
+
+    public static boolean bypassesSessionLimit(ServerPlayer player) {
+        return isOperatorBypass(player)
+                || ftbBoolean(player, BYPASS_SESSION_LIMIT).orElse(false)
+                || ftbBoolean(player, BYPASS_LIMITS).orElse(false);
+    }
+
+    /** @deprecated use the limit-specific check. */
+    @Deprecated
     public static boolean bypassesLimits(ServerPlayer player) {
         return isOperatorBypass(player) || ftbBoolean(player, BYPASS_LIMITS).orElse(false);
     }
 
     public static long maximumDuration(ServerPlayer player) {
         long configured = ConfigManager.get().unplugged.maximumUnpluggedTimeout;
-        if (bypassesLimits(player)) return Long.MAX_VALUE;
+        if (bypassesDurationLimit(player)) return Long.MAX_VALUE;
         return Math.max(1L, ftbLong(player, MAX_DURATION).orElse(configured));
     }
 

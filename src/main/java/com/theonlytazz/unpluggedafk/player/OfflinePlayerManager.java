@@ -94,7 +94,7 @@ public final class OfflinePlayerManager {
         if (server == null || original instanceof OfflinePlayer || players.containsKey(original.getUUID())) return false;
         if (!ConfigManager.get().main.unpluggedAfkEnabled) return false;
         if (!AccessController.mayUse(original)) return false;
-        if (!AccessController.bypassesLimits(original)
+        if (!AccessController.bypassesSessionLimit(original)
                 && players.size() >= ConfigManager.get().unplugged.maximumSimultaneousPlayers) {
             original.sendSystemMessage(Translations.component("command.unplugged_afk.server_limit"));
             return false;
@@ -145,7 +145,8 @@ public final class OfflinePlayerManager {
             } else {
                 pendingAutomatic.remove(entry.getKey());
                 if (!stopping && server.getPlayerList().getPlayer(entry.getKey()) == null
-                        && players.size() < ConfigManager.get().unplugged.maximumSimultaneousPlayers) {
+                        && (pending.bypassSessionLimit()
+                        || players.size() < ConfigManager.get().unplugged.maximumSimultaneousPlayers)) {
                     spawn(server, pending.profile(), pending.minutes(), "message.unplugged_afk.reason.automatic");
                 }
             }
@@ -273,7 +274,7 @@ public final class OfflinePlayerManager {
         minutes = Math.min(minutes, AccessController.maximumDuration(player));
         player.level().getServer().getPlayerList().save(player);
         pendingAutomatic.put(uuid, new PendingAutomatic(player.nameAndId(), minutes,
-                automatic.delaySeconds * 20));
+                automatic.delaySeconds * 20, AccessController.bypassesSessionLimit(player)));
     }
 
     public void setAutomatic(ServerPlayer player, long minutes) {
@@ -429,7 +430,10 @@ public final class OfflinePlayerManager {
                         .withStyle(ChatFormatting.YELLOW), false);
     }
 
-    private record PendingAutomatic(NameAndId profile, long minutes, int ticksRemaining) {
-        PendingAutomatic tick() { return new PendingAutomatic(profile, minutes, ticksRemaining - 1); }
+    private record PendingAutomatic(NameAndId profile, long minutes, int ticksRemaining,
+                                    boolean bypassSessionLimit) {
+        PendingAutomatic tick() {
+            return new PendingAutomatic(profile, minutes, ticksRemaining - 1, bypassSessionLimit);
+        }
     }
 }
