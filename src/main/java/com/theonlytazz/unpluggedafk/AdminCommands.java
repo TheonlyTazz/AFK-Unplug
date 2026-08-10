@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.player.OfflinePlayerManager;
+import com.theonlytazz.unpluggedafk.permission.AccessController;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -42,7 +43,8 @@ final class AdminCommands {
                                         StringArgumentType.getString(ctx, "value")))));
 
         dispatcher.register(Commands.literal("unplugged-admin")
-                .requires(source -> hasPermission(source, ConfigManager.get().commands.unpluggedAdminCommandPermissions))
+                .requires(source -> hasPermission(source, ConfigManager.get().commands.unpluggedAdminCommandPermissions)
+                        || (source.getPlayer() != null && AccessController.mayAdmin(source.getPlayer())))
                 .executes(ctx -> info(ctx.getSource()))
                 .then(Commands.literal("info").executes(ctx -> info(ctx.getSource()))
                         .then(Commands.argument("player", GameProfileArgument.gameProfile())

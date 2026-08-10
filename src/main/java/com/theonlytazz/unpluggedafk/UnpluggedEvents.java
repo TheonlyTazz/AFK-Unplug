@@ -23,8 +23,9 @@ final class UnpluggedEvents {
     @SubscribeEvent
     public void registerCommands(RegisterCommandsEvent event) {
         var root = Commands.literal("unplug")
-                .requires(source -> source.permissions() instanceof LevelBasedPermissionSet levels
+                .requires(source -> (source.permissions() instanceof LevelBasedPermissionSet levels
                         && levels.level().isEqualOrHigherThan(PermissionLevel.byId(ConfigManager.get().commands.unplugCommandPermissions)))
+                        || (source.getPlayer() != null && AccessController.hasUseGrant(source.getPlayer())))
                 .executes(ctx -> unplug(ctx.getSource().getPlayerOrException(),
                         ConfigManager.get().unplugged.defaultUnpluggedTimeout, ""))
                 .then(Commands.argument("minutes", IntegerArgumentType.integer(1))
