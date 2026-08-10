@@ -58,11 +58,17 @@ class ConfigManagerTest {
         config.commands.unplugCommandPermissions = 99;
         config.commands.afkCommandPermissions = -4;
         config.unplugged.defaultUnpluggedTimeout = 0;
+        config.unplugged.maximumUnpluggedTimeout = 0;
+        config.unplugged.maximumSimultaneousPlayers = 0;
+        config.access.mode = "invalid";
         config.normalize();
 
         assertEquals(4, config.commands.unplugCommandPermissions);
         assertEquals(0, config.commands.afkCommandPermissions);
         assertEquals(1, config.unplugged.defaultUnpluggedTimeout);
+        assertEquals(1, config.unplugged.maximumUnpluggedTimeout);
+        assertEquals(1, config.unplugged.maximumSimultaneousPlayers);
+        assertEquals("EVERYONE", config.access.mode);
     }
 
     @Test

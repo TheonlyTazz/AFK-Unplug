@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.player.OfflinePlayer;
 import com.theonlytazz.unpluggedafk.player.OfflinePlayerManager;
+import com.theonlytazz.unpluggedafk.permission.AccessController;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,6 +37,15 @@ final class UnpluggedEvents {
     private static int unplug(ServerPlayer player, long minutes, String reason) {
         if (player.getServer() != null && player.getServer().isSingleplayerOwner(player.getGameProfile())) {
             player.sendSystemMessage(Translations.component("command.unplugged_afk.singleplayer_owner"));
+            return 0;
+        }
+        if (!AccessController.mayUse(player)) {
+            player.sendSystemMessage(Translations.component("command.unplugged_afk.denied"));
+            return 0;
+        }
+        long maximum = AccessController.maximumDuration(player);
+        if (minutes > maximum) {
+            player.sendSystemMessage(Translations.component("command.unplugged_afk.duration_too_long", maximum));
             return 0;
         }
         return OfflinePlayerManager.get().unplug(player, minutes, reason) ? 1 : 0;

@@ -40,6 +40,18 @@ session state is stored in `<world>/unplugged_afk_sessions.json`; normal
 Minecraft playerdata remains authoritative for inventory, effects, position,
 dimension, game mode and other entity state.
 
+Access can be controlled with `access.mode` (`EVERYONE`, `ALLOWLIST`, or
+`DENYLIST`) and UUIDs in `access.players`. Names are accepted for convenience,
+but UUIDs are recommended. Operators bypass access and duration limits by
+default. `unplugged.maximumUnpluggedTimeout` caps a normal player's requested
+duration, and `unplugged.maximumSimultaneousPlayers` protects the server from
+too many representatives.
+
+When FTB Ranks is installed, the optional integration recognizes
+`unplugged_afk.use`, `unplugged_afk.auto`, `unplugged_afk.bypass_limits`, and
+the numeric `unplugged_afk.duration.max` node. Explicit FTB Ranks values take
+priority over the access list; the mod has no required FTB dependency.
+
 Offline replacements show `PlayerName [UNPLUGGED]` above their head and in the TAB
 list by default. Set `unplugged.showAfkNameplate` or
 `unplugged.showAfkInTabList` to `false` to disable either indicator, and change

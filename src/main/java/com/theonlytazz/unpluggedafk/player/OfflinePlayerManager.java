@@ -6,6 +6,7 @@ import com.theonlytazz.unpluggedafk.Translations;
 import com.theonlytazz.unpluggedafk.api.UnpluggedAfkApi;
 import com.theonlytazz.unpluggedafk.config.ConfigManager;
 import com.theonlytazz.unpluggedafk.state.UnpluggedStatus;
+import com.theonlytazz.unpluggedafk.permission.AccessController;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -74,8 +75,16 @@ public final class OfflinePlayerManager {
         MinecraftServer server = original.getServer();
         if (server == null || original instanceof OfflinePlayer || players.containsKey(original.getUUID())) return false;
         if (!ConfigManager.get().main.unpluggedAfkEnabled) return false;
+        if (!AccessController.mayUse(original)) return false;
+        if (!AccessController.bypassesLimits(original)
+                && players.size() >= ConfigManager.get().unplugged.maximumSimultaneousPlayers) {
+            original.sendSystemMessage(Translations.component("command.unplugged_afk.server_limit"));
+            return false;
+        }
 
         minutes = minutes > 0 ? minutes : ConfigManager.get().unplugged.defaultUnpluggedTimeout;
+        long maximum = AccessController.maximumDuration(original);
+        if (minutes > maximum) return false;
         server.getPlayerList().save(original);
         GameProfile profile = original.getGameProfile();
         var level = original.serverLevel();
