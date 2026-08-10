@@ -65,7 +65,7 @@ final class AdminCommands {
     private static int playerInfo(CommandSourceStack source, Collection<GameProfile> profiles) {
         for (GameProfile profile : profiles) {
             source.sendSuccess(() -> Translations.component("command.unplugged_afk.admin.player_info", profile.getName(),
-                    OfflinePlayerManager.get().session(profile.getId()).map(Object::toString)
+                    OfflinePlayerManager.get().sessionDetails(profile.getId()).map(Component::getString)
                             .orElseGet(() -> Translations.component("command.unplugged_afk.admin.not_tracked").getString())), false);
         }
         return profiles.size();
