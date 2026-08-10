@@ -52,6 +52,18 @@ public final class OfflinePlayerManager {
         return Optional.ofNullable(sessions.get(uuid));
     }
 
+    public Optional<Component> sessionDetails(UUID uuid) {
+        OfflineSession session = sessions.get(uuid);
+        if (session == null) return Optional.empty();
+        OfflinePlayer player = players.get(uuid);
+        String location = player == null ? "-" : String.format(Locale.ROOT, "%s @ %.1f, %.1f, %.1f",
+                player.level().dimension().identifier(), player.getX(), player.getY(), player.getZ());
+        long remainingSeconds = session.remaining(Instant.now()).toSeconds();
+        return Optional.of(Translations.component("command.unplugged_afk.admin.player_details",
+                session.status(), remainingSeconds, location,
+                session.reason().isBlank() ? "-" : session.reason()));
+    }
+
     public int activeCount() { return players.size(); }
     public boolean isActive(UUID uuid) { return players.containsKey(uuid); }
 
