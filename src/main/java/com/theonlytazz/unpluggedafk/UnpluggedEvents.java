@@ -29,9 +29,72 @@ final class UnpluggedEvents {
                         .then(Commands.argument("reason", StringArgumentType.greedyString())
                                 .executes(ctx -> unplug(ctx.getSource().getPlayerOrException(),
                                         IntegerArgumentType.getInteger(ctx, "minutes"), StringArgumentType.getString(ctx, "reason")))));
+        root.then(Commands.literal("status")
+                .executes(ctx -> status(ctx.getSource().getPlayerOrException())));
+        root.then(Commands.literal("cancel")
+                .executes(ctx -> cancel(ctx.getSource().getPlayerOrException())));
+        root.then(Commands.literal("auto")
+                .then(Commands.literal("on")
+                        .executes(ctx -> auto(ctx.getSource().getPlayerOrException(),
+                                ConfigManager.get().automatic.defaultDurationMinutes))
+                        .then(Commands.argument("minutes", IntegerArgumentType.integer(1))
+                                .executes(ctx -> auto(ctx.getSource().getPlayerOrException(),
+                                        IntegerArgumentType.getInteger(ctx, "minutes")))))
+                .then(Commands.literal("off")
+                        .executes(ctx -> autoOff(ctx.getSource().getPlayerOrException()))));
+        root.then(Commands.literal("next")
+                .executes(ctx -> next(ctx.getSource().getPlayerOrException(),
+                        ConfigManager.get().automatic.defaultDurationMinutes))
+                .then(Commands.argument("minutes", IntegerArgumentType.integer(1))
+                        .executes(ctx -> next(ctx.getSource().getPlayerOrException(),
+                                IntegerArgumentType.getInteger(ctx, "minutes")))));
         if (ConfigManager.get().commands.enableUnplugCommand) event.getDispatcher().register(root);
-        if (ConfigManager.get().commands.enableAfkCommand) event.getDispatcher().register(Commands.literal("afk").redirect(root.build()));
+        if (ConfigManager.get().commands.enableAfkCommand) {
+            if (event.getDispatcher().getRoot().getChild("afk") == null) {
+                event.getDispatcher().register(Commands.literal("afk").redirect(root.build()));
+            } else {
+                UnpluggedAfk.LOGGER.warn("The optional /afk alias was not registered because another mod owns it; use /unplug");
+            }
+        }
         AdminCommands.register(event.getDispatcher());
+    }
+
+    private static int status(ServerPlayer player) {
+        player.sendSystemMessage(OfflinePlayerManager.get().automaticStatus(player));
+        return 1;
+    }
+
+    private static int cancel(ServerPlayer player) {
+        boolean cancelled = OfflinePlayerManager.get().cancelAutomatic(player.getUUID());
+        player.sendSystemMessage(Translations.component(cancelled
+                ? "command.unplugged_afk.cancelled" : "command.unplugged_afk.nothing_to_cancel"));
+        return cancelled ? 1 : 0;
+    }
+
+    private static int auto(ServerPlayer player, long minutes) {
+        if (!AccessController.mayAutoUnplug(player) || minutes > AccessController.maximumDuration(player)) {
+            player.sendSystemMessage(Translations.component("command.unplugged_afk.denied"));
+            return 0;
+        }
+        OfflinePlayerManager.get().setAutomatic(player, minutes);
+        player.sendSystemMessage(Translations.component("command.unplugged_afk.auto.enabled", minutes));
+        return 1;
+    }
+
+    private static int autoOff(ServerPlayer player) {
+        OfflinePlayerManager.get().disableAutomatic(player.getUUID());
+        player.sendSystemMessage(Translations.component("command.unplugged_afk.auto.disabled"));
+        return 1;
+    }
+
+    private static int next(ServerPlayer player, long minutes) {
+        if (!AccessController.mayAutoUnplug(player) || minutes > AccessController.maximumDuration(player)) {
+            player.sendSystemMessage(Translations.component("command.unplugged_afk.denied"));
+            return 0;
+        }
+        OfflinePlayerManager.get().armNextLogout(player, minutes);
+        player.sendSystemMessage(Translations.component("command.unplugged_afk.next.armed", minutes));
+        return 1;
     }
 
     private static int unplug(ServerPlayer player, long minutes, String reason) {
@@ -65,6 +128,13 @@ final class UnpluggedEvents {
     public void playerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && !(player instanceof OfflinePlayer)) {
             OfflinePlayerManager.get().onRealPlayerJoined(player);
+        }
+    }
+
+    @SubscribeEvent
+    public void playerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && !(player instanceof OfflinePlayer)) {
+            OfflinePlayerManager.get().onRealPlayerLoggedOut(player);
         }
     }
 
